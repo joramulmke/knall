@@ -34,7 +34,8 @@ Automatisierte Boulevard-Pipeline: links, arbeitnehmerfreundlich, ökologisch, a
 ## Verzeichnisse
 
 ```
-├── .github/workflows/     daily.yml (Pipeline), deploy-and-mirror.yml (Deploy-Server + Mirror, nur bei manuellen Pushes)
+├── .github/workflows/     daily.yml (Pipeline), deploy-and-mirror.yml (Deploy-Server + Mirror, nur bei manuellen Pushes),
+│                          archiv-export.yml (Fehler-Archiv verschlüsselt herunterladen)
 ├── prompts/               ki0.txt, ki1.txt, ki2.txt, ki3.txt
 ├── scripts/               collect.py, score.py, ki_client.py, regex_gate.py,
 │                          special_checks.py, router.py, stats.py, publish.py, fulltext.py
@@ -42,6 +43,7 @@ Automatisierte Boulevard-Pipeline: links, arbeitnehmerfreundlich, ökologisch, a
 ├── sources/               Teaser + Volltexte des Tages (nur verschlüsselt im Actions-Cache, nicht committet)
 ├── drafts/                Entwürfe, Prüfprotokolle, Tageszähler (nur verschlüsselt im Actions-Cache)
 ├── tests/                 Tests der maschinellen Prüfungen (laufen vor jedem Lauf)
+├── archiv/                Privates Fehler-Archiv abgelehnter Artikel (nur verschlüsselt im Cache)
 ├── published/             Freigegebene Artikel (Markdown + Metadaten)
 ├── rejected/              Ablehnungs-Befunde OHNE Artikeltext (Gründe, Ampeln, Prüfposten)
 ├── site/                  GitHub-Pages-Skeleton
@@ -60,6 +62,16 @@ Optional (Actions-Variablen):
 Einmalig in den Repo-Einstellungen: **Settings → Pages → Source: „GitHub Actions“** (sonst schlägt der Pages-Job fehl).
 
 Abhängigkeiten sind in `requirements.txt` fest gepinnt, Actions auf Commit-SHAs.
+
+## Fehler-Archiv auswerten (privat)
+
+Abgelehnte Artikel werden zusätzlich **vollständig** archiviert: letzter Text, alle Fassungen (KI1-Entwurf, Regex-/Gelb-/KI3-Korrekturen), alle KI2/KI3-Protokolle, Sonderprüfungen und die Quelltexte. Das Archiv (`archiv/abgelehnt/`) liegt nur im verschlüsselten Actions-Cache, nie im Repo, und wird nach 90 Tagen gelöscht (`KNALL_ARCHIV_TAGE`).
+
+1. Actions → **„Fehler-Archiv exportieren“** → Run workflow
+2. Artefakt `knall-archiv-verschluesselt` herunterladen und entpacken (`work.tar.enc`, bleibt verschlüsselt)
+3. Lokal: `python scripts/archiv_auswerten.py work.tar.enc` → fragt nach dem OpenRouter-API-Key → schreibt `archiv_bericht.md` (häufigste Gründe, KI2-Befunde, Texte, Quellen)
+
+Der Bericht enthält abgelehnte Texte — nicht veröffentlichen.
 
 ## Transparenz
 

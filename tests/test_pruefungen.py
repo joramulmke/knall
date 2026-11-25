@@ -76,3 +76,12 @@ def test_ki2_ok_mit_leeren_verstoessen_ist_gruen():
             "saetze": [{"satz_nr": 0, "befund": "ok", "verstoesse": []},
                        {"satz_nr": 1, "befund": "ok", "verstoesse": []}]}
     assert ki2_verdict(prot, "Titel hier.\nEin Satz hier.")[0] == "gruen"
+
+
+def test_oeffentlicher_befund_ohne_text():
+    """Abgelehnte Texte, Fassungen und Quelltexte bleiben privat (Archiv)."""
+    from router import redact
+    draft = {"text": "Geheimer Text", "verlauf": [{"stufe": "ki1-entwurf", "text": "Geheimer Text"}],
+             "quellen_text": "Quelle", "text_vor_ki3": "Geheimer Text",
+             "cluster": {"thema": "T"}, "ablehnungsgruende": ["x"]}
+    assert "Geheimer Text" not in str(redact(draft)) and "Quelle" not in str(redact(draft))

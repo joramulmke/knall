@@ -1,0 +1,40 @@
+name: Fehler-Archiv exportieren
+
+# Manuell starten (Actions → "Fehler-Archiv exportieren" → Run workflow).
+# Lädt den neuesten VERSCHLÜSSELTEN Cache-Stand als Artefakt hoch — er wird
+# hier nicht entschlüsselt. Entschlüsseln geht nur lokal mit dem
+# OpenRouter-API-Key, siehe README ("Fehler-Archiv auswerten").
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Neuesten Cache-Stand laden
+        id: cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .knall-cache/work.tar.enc
+          key: knall-work-enc-export-${{ github.run_id }}
+          restore-keys: |
+            knall-work-enc-
+
+      - name: Pruefen
+        run: |
+          if [ ! -s .knall-cache/work.tar.enc ]; then
+            echo "::error::Kein Cache-Stand gefunden (noch kein Lauf oder Cache abgelaufen)"
+            exit 1
+          fi
+          echo "Stand: ${{ steps.cache.outputs.cache-matched-key }}"
+
+      - name: Als Artefakt bereitstellen (verschluesselt, 3 Tage)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: knall-archiv-verschluesselt
+          path: .knall-cache/work.tar.enc
+          retention-days: 3
