@@ -11,3 +11,5 @@ sources/*
 # Verschlüsselter Cache-Container (nur im Workflow)
 .knall-cache/
 .pytest_cache/
+# Privates Fehler-Archiv (nur verschlüsselt im Actions-Cache)
+archiv/

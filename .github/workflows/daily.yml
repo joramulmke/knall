@@ -62,6 +62,7 @@ jobs:
             echo "Vorarbeit wiederhergestellt"
           else
             echo "::warning::Cache nicht entschluesselbar (API-Key gewechselt?) — frischer Start"
+            rm -rf archiv
             find sources drafts -mindepth 1 ! -name .gitkeep -delete
           fi
 
@@ -158,8 +159,9 @@ jobs:
           KNALL_CACHE_PASS=$(printf '%s' "$OPENROUTER_API_KEY" | sha256sum | cut -d' ' -f1)
           echo "::add-mask::$KNALL_CACHE_PASS"
           export KNALL_CACHE_PASS
-          mkdir -p .knall-cache
-          tar -cz sources drafts | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \
+          mkdir -p .knall-cache archiv/abgelehnt
+          # archiv/ = privates Fehler-Archiv (abgelehnte Artikel vollständig, 90 Tage)
+          tar -cz sources drafts archiv | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \
             -pass env:KNALL_CACHE_PASS -out .knall-cache/work.tar.enc
           echo "ok=true" >> "$GITHUB_OUTPUT"
 

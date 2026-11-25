@@ -37,6 +37,10 @@ import traceback
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DRAFTS = ROOT / "drafts"
 REJECTED = ROOT / "rejected"
+# Privates Fehler-Archiv: abgelehnte Artikel VOLLSTÄNDIG (Text, alle Fassungen,
+# alle Prüfprotokolle, Quelltexte) — nur im verschlüsselten Actions-Cache,
+# nie im Repo. Zum späteren Auswerten (scripts/archiv_auswerten.py).
+ARCHIV = ROOT / "archiv" / "abgelehnt"
 MAX_GELB_ROUNDS = 2
 MAX_REGEX_ROUNDS = 2
 
@@ -140,12 +144,39 @@ def reject_path(today, name):
     return REJECTED / f"{fname}.json"
 
 
+def verlauf(draft, stufe, **daten):
+    """Jede Textfassung und jedes Prüfprotokoll mitschreiben (nur privat:
+    redact() übernimmt das Feld nicht)."""
+    import datetime as _dt
+    eintrag = {"stufe": stufe, "zeit": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds")}
+    eintrag.update(daten)
+    draft.setdefault("verlauf", []).append(eintrag)
+
+
+def archivieren(today, name, draft):
+    """Abgelehnten Entwurf vollständig ins private Archiv legen — inkl. der
+    Quelltexte, damit sich Fehler später nachvollziehen lassen."""
+    try:
+        rec = dict(draft)
+        try:
+            rec["quellen_text"], _, _ = sources_from_cluster(draft.get("cluster") or {}, draft.get("tag") or today)
+        except Exception as exc:  # Quellen fehlen (z. B. schon aufgeräumt)
+            rec["quellen_text"] = f"(nicht verfuegbar: {exc})"
+        rec["archiviert_am"] = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+        fname = name if name.startswith(today) else f"{today}-{name}"
+        write_json(ARCHIV / f"{fname}.json", rec)
+    except Exception as exc:  # Archiv darf die Pipeline nie aufhalten
+        print(f"::warning::Archivieren von {name} fehlgeschlagen: {exc}")
+
+
 def reject(today, name, draft, grund):
-    """Inhaltliche Ablehnung — endgültig."""
+    """Inhaltliche Ablehnung — endgültig. Öffentlich nur der Befund ohne Text,
+    privat (Archiv) der vollständige Entwurf."""
     draft["stage"] = "abgelehnt"
     draft["ampel_final"] = "rot"
     draft.setdefault("ablehnungsgruende", []).append(grund)
     write_json(reject_path(today, name), redact(draft))
+    archivieren(today, name, draft)
     print(f"  → rejected: {grund}")
 
 
@@ -209,7 +240,7 @@ def fill(template, **kw):
     return out
 
 
-def regex_runden(text, base_prompt, quellen):
+def regex_runden(text, base_prompt, quellen, draft=None, stufe="regex"):
     """Regex-Gate + bis zu MAX_REGEX_ROUNDS billige KI1-Korrekturen.
     Rückgabe (text, rest_findings, runden). Läuft nach JEDER Textänderung."""
     from ki_client import llm_call
@@ -223,9 +254,12 @@ def regex_runden(text, base_prompt, quellen):
             + "Er enthält Stil- und Formfehler. Korrigiere NUR diese Stellen und antworte mit dem kompletten korrigierten Artikel:\n"
             + "\n".join(f"- {f['regel']}: {f['stelle']}" for f in findings)
         )
+        befunde_vorher = findings
         text = llm_call(repair_prompt, model="LARGE").strip()
         findings = check(text, quellen)
         rounds += 1
+        if draft is not None:
+            verlauf(draft, f"{stufe}-korrektur", runde=rounds, befunde=befunde_vorher, text=text)
     return text, findings, rounds
 
 
@@ -265,7 +299,9 @@ def write_stage():
                 continue
             base_prompt = fill(ki1_tpl, QUELLEN=quellen)
             raw = llm_call(base_prompt, model="LARGE").strip()
-            raw, findings, rounds = regex_runden(raw, base_prompt, quellen)
+            draft.pop("verlauf", None)  # Neuschreiben (Wiederholung nach Fehler) → frischer Verlauf
+            verlauf(draft, "ki1-entwurf", text=raw)
+            raw, findings, rounds = regex_runden(raw, base_prompt, quellen, draft, "regex")
             draft.update({"text": raw, "regex_rest_findings": findings, "korrekturrunden_regex": rounds,
                           "stage": "geschrieben"})
             clear_fail(today, name, draft)
@@ -332,6 +368,7 @@ def evaluate_stage():
             rounds = 0
             while True:
                 ampel, protokoll, gruende = ki2_check(draft["text"], quellen)
+                verlauf(draft, "ki2", ampel=ampel, gruende=gruende, protokoll=protokoll)
                 draft["ki2_protokoll"] = protokoll
                 draft.setdefault("ki2_validierung", []).append({"ampel": ampel, "gruende": gruende})
                 if ampel != "gelb":
@@ -350,7 +387,8 @@ def evaluate_stage():
                     + "Korrigiere NUR diese Stellen und antworte mit dem kompletten korrigierten Artikel."
                 )
                 neu = llm_call(repair_prompt, model="LARGE").strip()
-                neu, rest, rr = regex_runden(neu, ki1_base, quellen)
+                verlauf(draft, "gelb-korrektur", runde=rounds, hinweis=hinweis, text=neu)
+                neu, rest, rr = regex_runden(neu, ki1_base, quellen, draft, "regex-nach-gelb")
                 draft["gelb_protokoll"][-1].update({"regex_runden": rr, "regex_rest": len(rest)})
                 draft["text"] = neu
                 write_json(dpath, draft)  # Zwischenstand sichern
@@ -358,6 +396,7 @@ def evaluate_stage():
             draft["ki2_pruefrunden"] = rounds + 1
             draft["ki2_endampel"] = ampel
             special = run_all(draft["text"], quellen)
+            verlauf(draft, "sonderpruefung", ergebnis=special)
             draft["special_checks"] = special
             final = "gruen" if (ampel == "gruen" and special.get("bestaende") is True) else "rot"
             draft["ampel_final"] = final
@@ -436,6 +475,7 @@ def legal_stage():
             cluster = draft["cluster"]
             quellen, _, _ = sources_from_cluster(cluster, today)
             entscheidung, result, gruende = ki3_check(draft["text"], quellen)
+            verlauf(draft, "ki3", entscheidung=entscheidung, gruende=gruende, urteil=result)
             draft["ki3_entscheidung"] = result
             draft["ki3_validierung"] = {"entscheidung": entscheidung, "gruende": gruende}
             clear_fail(today, name, draft)
@@ -452,21 +492,25 @@ def legal_stage():
                 # Regex-Gate auch nach den Ersatzformulierungen; die anschließende
                 # Nachprüfung (KI2 + Sonderprüfung + KI3) sieht den Endtext.
                 ki1_base = fill((ROOT / "prompts" / "ki1.txt").read_text(encoding="utf-8"), QUELLEN=quellen)
-                neu, rest, rr = regex_runden(neu, ki1_base, quellen)
+                verlauf(draft, "ki3-ersatz", text=neu)
+                neu, rest, rr = regex_runden(neu, ki1_base, quellen, draft, "regex-nach-ki3")
                 draft["text_vor_ki3"] = draft["text"]
                 draft["text"] = neu
                 draft["ki3_nachbesserung"] = True
                 draft["ki3_regex"] = {"runden": rr, "rest": len(rest)}
                 # EINE Nachprüfung, keine Schleife
                 ampel2, prot2, gr2 = ki2_check(neu, quellen)
+                verlauf(draft, "ki2-nachpruefung", ampel=ampel2, gruende=gr2, protokoll=prot2)
                 draft["ki2_nachpruefung"] = {"ampel": ampel2, "gruende": gr2, "protokoll": prot2}
                 special2 = run_all(neu, quellen)
+                verlauf(draft, "sonderpruefung-nachpruefung", ergebnis=special2)
                 draft["special_checks_nachpruefung"] = special2
                 if ampel2 != "gruen" or special2.get("bestaende") is not True:
                     reject(today, name, draft, "Nachpruefung nach KI3-Nachbesserung nicht bestanden (KI2/Sonderpruefung)")
                     write_json(dpath, draft)
                     continue
                 ent2, res2, gr3 = ki3_check(neu, quellen)
+                verlauf(draft, "ki3-nachpruefung", entscheidung=ent2, gruende=gr3, urteil=res2)
                 draft["ki3_nachpruefung"] = {"entscheidung": ent2, "gruende": gr3, "urteil": res2}
                 if ent2 != "freigabe":
                     reject(today, name, draft, f"KI3-Nachpruefung: {ent2}")
