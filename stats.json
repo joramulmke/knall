@@ -1,16 +1,16 @@
 {
   "2026-11-25": {
-    "rot": 0,
+    "rot": 1,
     "gelb": 0,
     "ki3_stopp": 0,
-    "fehler": 3,
+    "fehler": 1,
     "abgelaufen": 0,
     "published": 0,
     "gruende": [
-      "technischer Fehler in write (wird wiederholt): LLM-Aufruf: Warte-Budget erschoepft. Letzter Fehler: HTTP 429 fuer '…': {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"inclu",
-      "technischer Fehler in write (wird wiederholt): LLM-Aufruf: Warte-Budget erschoepft. Letzter Fehler: inclusionai/ling-3.2-flash:free lieferte leeren content (nur Reasoning?)",
-      "technischer Fehler in write (wird wiederholt): Free-Tier-Tageslimit"
+      "technischer Fehler in evaluate (wird wiederholt): Free-Tier-Tageslimit",
+      "KI2 rot/gelb-erschoepft"
     ],
+    "warnung_rot_quote": true,
     "anfragen": {
       "anfragen": 50,
       "ok": 1,
@@ -23,19 +23,19 @@
         "baidu/ernie-5.5-flash-preview:free": 13,
         "google/gemma-4-31b-it:free": 14,
         "inclusionai/ling-3.2-flash:free": 3,
-        "groq:openai/gpt-oss-120b": 1,
+        "groq:openai/gpt-oss-120b": 12,
         "groq:llama-3.3-70b-versatile": 1
       },
       "limit": 50,
-      "groq_anfragen": 2,
-      "groq_ok": 0,
-      "groq_r429": 0,
+      "groq_anfragen": 13,
+      "groq_ok": 6,
+      "groq_r429": 5,
       "groq_fehler": 2,
       "groq_leer": 0,
       "groq_limit": 900,
       "gesperrt_bis": {
         "google/gemma-4-31b-it:free": 1795645181,
-        "groq:openai/gpt-oss-120b": 1795730981,
+        "groq:openai/gpt-oss-120b": 1795645480,
         "groq:llama-3.3-70b-versatile": 1795730981
       }
     },
@@ -50,8 +50,8 @@
     "tage_ueber_80_prozent": 1,
     "r429_gesamt": 20,
     "anteil_429": 0.4,
-    "groq_schnitt_anfragen": 2.0,
-    "groq_r429_gesamt": 0,
+    "groq_schnitt_anfragen": 13.0,
+    "groq_r429_gesamt": 5,
     "im_kontingent": false
   },
   "_volltext": {
