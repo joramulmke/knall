@@ -35,6 +35,8 @@ from safety import clean_text  # noqa: E402
 from common import run_day, zu_alt, alter_tage, MAX_ALTER_TAGE  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+# Abrufe PRO LAUF. Früher pro Tag gezählt: Nach den ersten Läufen war das
+# Tageskontingent voll und neue Feeds bekamen keinen einzigen Abruf mehr.
 MAX_ITEMS = int(os.environ.get("KNALL_VOLLTEXT_MAX") or 60)
 MAX_PRO_FEED = int(os.environ.get("KNALL_VOLLTEXT_PRO_FEED") or 6)
 MIN_ZEICHEN = 800        # darunter: Paywall-Teaser o. ä. → kein Originalartikel
@@ -205,7 +207,6 @@ def main():
 
     ged = gedaechtnis_laden()
     bekannte_urls = {it.get("url_original") for _, it in items if it.get("volltext")}
-    erledigt = sum(1 for _, it in items if it.get("volltext_status") and not it["volltext_status"].startswith("uebersprungen"))
     pro_feed = {}
     for _, it in items:
         if it.get("volltext_status"):
@@ -241,7 +242,7 @@ def main():
     proben = set()
     abgerufen = 0
     for path, item in offen:
-        if erledigt + abgerufen >= MAX_ITEMS:
+        if abgerufen >= MAX_ITEMS:
             break
         feed = item["source_key"]
         if pro_feed.get(feed, 0) >= MAX_PRO_FEED:
