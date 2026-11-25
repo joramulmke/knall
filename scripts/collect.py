@@ -14,7 +14,7 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from safety import clean_text  # noqa: E402
-from common import run_day  # noqa: E402
+from common import run_day, medium_kurz  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CONFIG = yaml.safe_load((ROOT / "config" / "feeds.yml").read_text(encoding="utf-8"))
@@ -78,7 +78,7 @@ def fetch(feed_key, feed_def):
             "datum_vom_feed": feed_def.get("datum") == "feed",
             "url": link,                      # Feed-Link (bei Spiegeln: Google-Weiterleitung)
             "google_news": is_mirror,
-            "medium": medium or None,
+            "medium": medium_kurz(medium),
             "title": title,
             "summary": summary,
             "published": getattr(entry, "published", ""),

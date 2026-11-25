@@ -34,6 +34,18 @@ def run_day():
     return datetime.datetime.now(datetime.timezone.utc).date().isoformat()
 
 
+def medium_kurz(name):
+    """Medienname ohne Slogan: "Haufe. Intelligenz, die bewegt." → "Haufe",
+    "taz | die tageszeitung" → "taz", "MDR – Nachrichten" → "MDR"."""
+    n = str(name or "").strip()
+    for trenner in (" | ", " – ", " — ", " - ", ". ", ": "):
+        if trenner in n:
+            kopf = n.split(trenner, 1)[0].strip()
+            if len(kopf) >= 2:
+                n = kopf
+    return n.rstrip(".").strip() or None
+
+
 MAX_ALTER_TAGE = int(os.environ.get("KNALL_MAX_ALTER_TAGE") or 3)
 
 

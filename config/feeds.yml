@@ -46,6 +46,12 @@ definitions:
     url: https://nd-aktuell.de/rss/aktuell.php
     ressort: all
 
+  die_linke_presse:
+    type: nativ
+    name: "Die Linke"
+    url: https://www.die-linke.de/start/presse/feed.rss
+    ressort: all
+
   # ---------- Überregionale ----------
   tagesschau:
     type: nativ
