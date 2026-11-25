@@ -33,9 +33,9 @@ Automatisierte Boulevard-Pipeline: links, arbeitnehmerfreundlich, ökologisch, a
 │                          special_checks.py, router.py, stats.py, publish.py
 ├── config/feeds.yml       Alle Feed-URLs, Bewertungen, Ressort-Zuordnung
 ├── sources/               RSS-Archiv (JSON pro Artikel)
-├── drafts/                KI1-Entwürfe + KI2-Protokolle
+├── drafts/                KI1-Entwürfe + KI2-Protokolle (nur im Lauf, nicht committet)
 ├── published/             Freigegebene Artikel (Markdown + Metadaten)
-├── rejected/              Rote/gelb-erschlöpfte Artikel + Befund
+├── rejected/              Ablehnungs-Befunde OHNE Artikeltext (Gründe, Ampeln, Prüfposten)
 ├── site/                  GitHub-Pages-Skeleton
 └── stats.json             Ampel-Statistik (Rot-Gründe, Trends)
 ```
@@ -46,6 +46,7 @@ Benötigte GitHub-Secrets:
 - `OPENROUTER_API_KEY` (oder Äquivalent) — für KI0–KI3
 
 Optional:
+- `SFTP_KNOWN_HOSTS`, `MIRROR_KNOWN_HOSTS` — Host-Schlüssel (Ausgabe von `ssh-keyscan <host>`, einmal von einem vertrauenswürdigen Rechner geprüft). Ohne sie warnt der Deploy und vertraut dem Schlüssel ungeprüft.
 - `KI_MODEL_SMALL`, `KI_MODEL_LARGE`, `KI_FALLBACK_MODELS` (kommagetrennt) — nur `:free`-Modelle, Default siehe scripts/ki_client.py
 
 ## Transparenz
