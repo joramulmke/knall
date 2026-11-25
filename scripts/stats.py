@@ -14,17 +14,22 @@ def main():
     data = {}
     if STATS.exists():
         data = json.loads(STATS.read_text(encoding="utf-8"))
-    day = data.setdefault(today, {"rot": 0, "gelb": 0, "gruen": 0, "ki3_stopp": 0, "published": 0})
+    # Tag immer neu berechnen (sonst zählen Wiederholungsläufe doppelt)
+    day = data[today] = {"rot": 0, "gelb": 0, "ki3_stopp": 0, "fehler": 0, "published": 0, "gruende": []}
     rejected_dir = ROOT / "rejected"
     for p in rejected_dir.glob(f"{today}-*.json"):
         d = json.loads(p.read_text(encoding="utf-8"))
-        ampel = d.get("ki2_protokoll", {}).get("ampel")
-        if ampel == "rot" or d.get("special_checks") and not d["special_checks"].get("bestaende"):
-            day["rot"] += 1
-        elif ampel == "gelb":
-            day["gelb"] += 1
-        elif d.get("ki3_entscheidung", {}).get("entscheidung") == "stopp":
+        gruende = d.get("ablehnungsgruende") or []
+        day["gruende"].extend(gruende)
+        text = " ".join(gruende)
+        if d.get("abbruch") or "Tageslimit" in text or "technischer Fehler" in text:
+            day["fehler"] += 1
+        elif "KI3" in text:
             day["ki3_stopp"] += 1
+        elif d.get("gelb_erschoepft"):
+            day["gelb"] += 1
+        else:
+            day["rot"] += 1
     day["published"] = len(list((ROOT / "published").glob(f"{today}-*.md")))
     # Systemwarnung: mehr als 30% rot
     total = day["rot"] + day["gelb"] + day["published"]

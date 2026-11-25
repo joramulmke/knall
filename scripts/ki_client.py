@@ -1,12 +1,19 @@
 """
 ki_client.py — Einheitliche LLM-Aufrufe über OpenRouter, JSON-Zwang.
 
-v4: Robustheit gegen leere Antworten. Manche Free-Modelle (besonders
-Reasoning-Modelle wie Nemotron) liefern text="reasoning" und ein LEERES
-content-Feld, wenn das Denk-Budget aufgebraucht ist. Solche Antworten
-zaehlen als wiederholbarer Fehler: Retry, dann Fallback-Kette.
+v5:
+- NUR :free-Modelle. Jedes Modell ohne ":free"-Suffix wird verweigert.
+- Fallback-Kette wird zur Laufzeit gegen openrouter.ai/api/v1/models
+  abgeglichen: nicht (mehr) existierende Modelle fliegen raus.
+- Reasoning-Modelle bekommen reasoning.effort=low + exclude und mehr
+  max_tokens, damit content nicht leer bleibt.
+- Tageslimit des Free-Tiers (429 "per-day") bricht SOFORT ab
+  (QuotaExhausted) statt 30 Minuten zu warten.
+- Kein Sleep nach dem letzten Versuch; 400/404 eines Modells → nächstes Modell.
+- 429-Antworttext wird bei jedem Versuch geloggt.
 
-Modell-Auflösung: Env-Variablen KI_MODEL_SMALL / KI_MODEL_LARGE (optional).
+Modell-Auflösung: Env-Variablen KI_MODEL_SMALL / KI_MODEL_LARGE /
+KI_FALLBACK_MODELS (kommagetrennt), alle optional.
 """
 import os
 import json
@@ -18,18 +25,27 @@ import urllib.error
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-# :free-Modelle (Stand 2026-11-25, via openrouter.ai/api/v1/models verifiziert)
 DEFAULT_SMALL = "google/gemma-4-26b-a4b-it:free"
 DEFAULT_LARGE = "google/gemma-4-31b-it:free"
 
-# Fallback-Kette bei persistentem 429 oder leeren Antworten.
-FALLBACK_CHAIN = [
+# Fallback-Kette bei persistentem 429, leeren Antworten oder fehlendem Modell.
+DEFAULT_FALLBACK_CHAIN = [
     "nvidia/nemotron-3.5-lightning:free",
     "baidu/ernie-5.5-flash-preview:free",
     "inclusionai/ling-3.2-flash:free",
 ]
 
-BACKOFF = [30, 60, 120, 240]
+BACKOFF = [20, 60, 120]          # Wartezeit NACH Versuch 1, 2 (und 3 entfällt)
+CALL_WAIT_BUDGET_S = 600         # max. Summe aller Wartezeiten pro llm_call
+DEFAULT_MAX_TOKENS = 4000        # Free-Modelle: Tokens kosten nichts, Reasoning braucht Platz
+
+
+class EmptyResponse(Exception):
+    """Modell antwortete mit leerem content (z. B. nur Reasoning)."""
+
+
+class QuotaExhausted(RuntimeError):
+    """Free-Tier-Tageslimit erreicht — weitere Versuche sind heute sinnlos."""
 
 
 def env_or(name, default):
@@ -37,19 +53,63 @@ def env_or(name, default):
     return val if val else default
 
 
+def require_free(model):
+    if not str(model).endswith(":free"):
+        raise ValueError(f"Nur :free-Modelle erlaubt, bekommen: {model!r}")
+    return model
+
+
 def resolve_model(model):
     if model == "LARGE":
-        return env_or("KI_MODEL_LARGE", DEFAULT_LARGE)
-    if not model or not str(model).strip():
-        return env_or("KI_MODEL_SMALL", DEFAULT_SMALL)
-    return str(model).strip()
+        return require_free(env_or("KI_MODEL_LARGE", DEFAULT_LARGE))
+    if not model or not str(model).strip() or model == "SMALL":
+        return require_free(env_or("KI_MODEL_SMALL", DEFAULT_SMALL))
+    return require_free(str(model).strip())
 
 
-class EmptyResponse(Exception):
-    """Modell antwortete mit leerem content (z. B. nur Reasoning)."""
+_AVAILABLE = None
 
 
-def _post_once(model, prompt, max_tokens):
+def available_free_models():
+    """Set der aktuell bei OpenRouter gelisteten :free-Modelle (oder None)."""
+    global _AVAILABLE
+    if _AVAILABLE is not None:
+        return _AVAILABLE or None
+    try:
+        with urllib.request.urlopen("https://openrouter.ai/api/v1/models", timeout=30) as resp:
+            data = json.loads(resp.read())
+        _AVAILABLE = {m["id"] for m in data.get("data", []) if str(m.get("id", "")).endswith(":free")}
+    except Exception as exc:  # Liste nicht verfügbar → konfigurierte Kette ungeprüft nutzen
+        print(f"  Modell-Liste nicht abrufbar ({exc}) — nutze Kette ungeprüft")
+        _AVAILABLE = set()
+    return _AVAILABLE or None
+
+
+def model_chain(primary):
+    raw = os.environ.get("KI_FALLBACK_MODELS", "")
+    fallbacks = [m.strip() for m in raw.split(",") if m.strip()] or DEFAULT_FALLBACK_CHAIN
+    chain = []
+    for m in [primary] + fallbacks:
+        if m in chain:
+            continue
+        try:
+            require_free(m)
+        except ValueError as exc:
+            print(f"  ueberspringe {m}: {exc}")
+            continue
+        chain.append(m)
+    avail = available_free_models()
+    if avail:
+        missing = [m for m in chain if m not in avail]
+        for m in missing:
+            print(f"  Modell {m} ist bei OpenRouter nicht (mehr) gelistet — uebersprungen")
+        chain = [m for m in chain if m in avail]
+    if not chain:
+        raise RuntimeError("Keine gueltigen :free-Modelle in der Kette")
+    return chain
+
+
+def _post_once(model, prompt, max_tokens, temperature):
     key = os.environ.get("OPENROUTER_API_KEY")
     if not key:
         raise RuntimeError("OPENROUTER_API_KEY fehlt")
@@ -57,7 +117,10 @@ def _post_once(model, prompt, max_tokens):
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": max_tokens,
-        "temperature": 0.3,
+        "temperature": temperature,
+        # Reasoning-Modelle: wenig denken, Denktext nicht zurückgeben —
+        # sonst bleibt content leer. Nicht-Reasoning-Modelle ignorieren das.
+        "reasoning": {"effort": "low", "exclude": True},
     }).encode()
     req = urllib.request.Request(
         "https://openrouter.ai/api/v1/chat/completions",
@@ -67,24 +130,34 @@ def _post_once(model, prompt, max_tokens):
             "Content-Type": "application/json",
         },
     )
-    with urllib.request.urlopen(req, timeout=120) as resp:
+    with urllib.request.urlopen(req, timeout=180) as resp:
         data = json.loads(resp.read())
+    if data.get("error"):
+        raise EmptyResponse(f"{model} lieferte Fehlerobjekt: {str(data['error'])[:300]}")
     content = (data.get("choices") or [{}])[0].get("message", {}).get("content")
     if not content or not str(content).strip():
         raise EmptyResponse(f"{model} lieferte leeren content (nur Reasoning?)")
     return str(content)
 
 
-def llm_call(prompt, model=None, max_tokens=2000):
-    """Ruft LLM auf. Bei persistentem 429 oder leeren Antworten: Backoff,
-    dann Fallback-Modelle. 4xx (nicht 429): sofort crashen."""
+def _is_daily_quota(body):
+    b = body.lower()
+    return "per-day" in b or "per day" in b or "free-models-per-day" in b
+
+
+def llm_call(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.3):
+    """Ruft LLM auf. 429/leere Antwort: kurzes Backoff, dann nächstes :free-Modell.
+    Tageslimit → QuotaExhausted sofort. 401/402/403 → sofort Abbruch."""
     primary = resolve_model(model)
-    chain = [primary] + [m for m in FALLBACK_CHAIN if m != primary]
+    chain = model_chain(primary)
     last_error = None
+    waited = 0
     for chain_model in chain:
-        for attempt, wait in enumerate(BACKOFF, start=1):
+        for attempt in range(1, len(BACKOFF) + 2):
+            wait = BACKOFF[attempt - 1] if attempt <= len(BACKOFF) else 0
+            is_last = attempt == len(BACKOFF) + 1
             try:
-                out = _post_once(chain_model, prompt, max_tokens)
+                out = _post_once(chain_model, prompt, max_tokens, temperature)
                 if chain_model != primary:
                     print(f"  (Antwort kam via Fallback-Modell: {chain_model})")
                 return out
@@ -95,40 +168,52 @@ def llm_call(prompt, model=None, max_tokens=2000):
                 except Exception:
                     pass
                 if exc.code == 429:
-                    last_error = RuntimeError(
-                        f"OpenRouter HTTP 429 fuer {chain_model!r}: {body}"
-                    )
-                    print(f"  429 bei {chain_model} (Versuch {attempt}), warte {wait}s ...")
-                    time.sleep(wait)
-                    continue
-                raise RuntimeError(
-                    f"OpenRouter HTTP {exc.code} fuer Modell {chain_model!r}: {body}"
-                ) from exc
+                    print(f"  429 bei {chain_model} (Versuch {attempt}): {body}")
+                    if _is_daily_quota(body):
+                        raise QuotaExhausted(f"Free-Tier-Tageslimit erreicht: {body}") from exc
+                    last_error = RuntimeError(f"HTTP 429 fuer {chain_model!r}: {body}")
+                elif exc.code in (401, 402, 403):
+                    raise RuntimeError(f"OpenRouter HTTP {exc.code} (Auth/Konto): {body}") from exc
+                elif exc.code in (400, 404, 410, 422):
+                    print(f"  HTTP {exc.code} bei {chain_model}: {body} — naechstes Modell")
+                    last_error = RuntimeError(f"HTTP {exc.code} fuer {chain_model!r}: {body}")
+                    break
+                else:
+                    print(f"  HTTP {exc.code} bei {chain_model} (Versuch {attempt}): {body}")
+                    last_error = RuntimeError(f"HTTP {exc.code} fuer {chain_model!r}: {body}")
             except EmptyResponse as exc:
+                print(f"  leere Antwort bei {chain_model} (Versuch {attempt})")
                 last_error = exc
-                print(f"  leere Antwort bei {chain_model} (Versuch {attempt}), warte {wait}s ...")
-                time.sleep(wait)
-                continue
             except Exception as exc:
+                print(f"  Netzwerkfehler bei {chain_model} (Versuch {attempt}): {exc}")
                 last_error = RuntimeError(f"Netzwerkfehler bei {chain_model!r}: {exc}")
-                time.sleep(10)
-        print(f"  {chain_model} persistent fehlgeschlagen — Fallback auf naechstes Modell")
+                wait = min(wait, 10)
+            if is_last:
+                break
+            if waited + wait > CALL_WAIT_BUDGET_S:
+                print("  Warte-Budget fuer diesen Aufruf aufgebraucht")
+                raise RuntimeError(f"LLM-Aufruf: Warte-Budget erschoepft. Letzter Fehler: {last_error}")
+            time.sleep(wait)
+            waited += wait
+        print(f"  {chain_model} fehlgeschlagen — naechstes Modell")
     raise RuntimeError(f"LLM-Aufruf endgueltig gescheitert (alle Modelle probiert): {last_error}")
 
 
-def llm_json(prompt, model=None, max_tokens=2500):
-    """Ruft LLM auf und erzwingt valides JSON; invalid = Retry, dann Crash."""
+def llm_json(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.0):
+    """Ruft LLM auf und erzwingt ein JSON-Objekt; invalid = Retry, dann Crash."""
     current = prompt
-    for attempt in range(3):
-        raw = llm_call(current, model=model, max_tokens=max_tokens)
-        try:
-            start = raw.find("{")
-            end = raw.rfind("}")
-            if start != -1 and end != -1:
-                return json.loads(raw[start:end + 1])
-        except json.JSONDecodeError:
-            pass
-        current = prompt + "\n\n(Antworte NUR mit validem JSON, ohne Text davor oder danach.)"
+    for _ in range(3):
+        raw = llm_call(current, model=model, max_tokens=max_tokens, temperature=temperature)
+        start = raw.find("{")
+        end = raw.rfind("}")
+        if start != -1 and end != -1:
+            try:
+                obj = json.loads(raw[start:end + 1])
+                if isinstance(obj, dict):
+                    return obj
+            except json.JSONDecodeError:
+                pass
+        current = prompt + "\n\n(Antworte NUR mit einem validen JSON-Objekt, ohne Text davor oder danach.)"
     raise RuntimeError("LLM hat 3x kein valides JSON geliefert")
 
 
@@ -143,10 +228,9 @@ def curate():
             kandidaten.append(item)
     kandidaten.sort(key=lambda x: -(x.get("score") or 0))
     top = kandidaten[:20]
+    (ROOT / "drafts").mkdir(exist_ok=True)
     if not top:
         print("Keine Kandidaten — KI0 uebersprungen")
-        (ROOT / "drafts").mkdir(exist_ok=True)
-        (ROOT / "drafts" / f"{today}-curation-empty.json").write_text("{}", encoding="utf-8")
         (ROOT / "drafts" / f"{today}-curation.json").write_text("{\"cluster\": []}", encoding="utf-8")
         return
     listing = []
@@ -163,13 +247,23 @@ def curate():
     prompt = prompt_file.read_text(encoding="utf-8").replace(
         "{{KANDIDATEN}}", json.dumps(listing, ensure_ascii=False, indent=1)
     )
-    model = env_or("KI_MODEL_SMALL", DEFAULT_SMALL)
+    model = resolve_model("SMALL")
     print(f"KI0 laeuft mit Modell: {model}")
-    result = llm_json(prompt, model=model)
+    result = llm_json(prompt, model=model, temperature=0.2)
+    # Nur Artikel-IDs aus der Kandidatenliste zulassen (keine erfundenen IDs)
+    valid_ids = {i["id"] for i in top}
+    cluster = []
+    for c in result.get("cluster", []) if isinstance(result.get("cluster"), list) else []:
+        if not isinstance(c, dict):
+            continue
+        ids = [a for a in c.get("artikel_ids", []) if a in valid_ids][:3]
+        if ids:
+            c["artikel_ids"] = ids
+            cluster.append(c)
+    result["cluster"] = cluster[:3]
     out = ROOT / "drafts" / f"{today}-curation.json"
-    out.parent.mkdir(exist_ok=True)
     out.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"KI0: {len(result.get('cluster', []))} Cluster gewaehlt")
+    print(f"KI0: {len(result['cluster'])} Cluster gewaehlt")
 
 
 if __name__ == "__main__":
