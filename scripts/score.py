@@ -2,6 +2,10 @@
 score.py — Deterministische Vorbewertung: Ressort-Keyword-Score, Region-Bonus.
 Schreibt score in jede Quelldatei. Artikel unter minimum_score_to_advance
 fliegen raus (Datei bleibt, Flag wird gesetzt).
+
+Läuft zweimal: vor fulltext.py (Teaser → Auswahl, welche Originale geholt
+werden) und danach (Volltext). Weiter kommt nur, wer einen gelesenen
+Originalartikel hat (vollstaendig=True) UND genug Punkte.
 """
 import json
 import datetime
@@ -40,7 +44,7 @@ def hit(word, text):
 
 
 def score_item(item):
-    text = (item.get("title", "") + " " + item.get("summary", "")).lower()
+    text = (item.get("title", "") + " " + (item.get("volltext") or item.get("summary", ""))).lower()
     s = 0
     best_ressort, best_hits = None, 0
     for ressort, words in KEYWORDS.items():
@@ -53,8 +57,6 @@ def score_item(item):
     elif any(hit(w, text) for w in REGION_BONUS_WORDS):
         s += REGION_BONUS_OST
     s += CONFLICT_BONUS * sum(1 for w in CONFLICT_WORDS if hit(w, text))
-    if not item.get("vollstaendig"):
-        s -= 2
     return s, best_ressort
 
 
@@ -67,7 +69,7 @@ def main():
         s, ressort = score_item(item)
         item["score"] = s
         item["ressort_detected"] = ressort
-        item["advance"] = s >= MIN_SCORE
+        item["advance"] = s >= MIN_SCORE and item.get("vollstaendig") is True
         path.write_text(json.dumps(item, ensure_ascii=False, indent=2), encoding="utf-8")
         if item["advance"]:
             candidates += 1

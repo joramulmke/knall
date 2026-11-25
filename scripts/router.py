@@ -7,6 +7,10 @@ Kernregeln (keine menschliche Freigabe → fail-closed):
   als vollständig und eindeutig "gruen" bestätigt. Alles andere = rot.
 - Jede Gelb-Korrektur führt zurück vor KI2 (max. 2 Runden, dann rot).
 - Sonderprüfungen laufen IMMER, auch nach grün.
+- Regex-Gate läuft nach JEDER Textänderung (KI1-Entwurf, Gelb-Korrektur,
+  KI3-Ersatzformulierung) — nicht nur nach dem ersten Entwurf.
+- Quellen sind ausschließlich Originalartikel (Volltext + Original-URL aus
+  fulltext.py); reine Teaser werden nie als Quelle verwendet.
 - KI3: nur eindeutige "freigabe" wird veröffentlicht. "stopp" oder
   unklares Urteil → rejected, endgültig, ohne neue Schleife.
   "nachbesserung" → Ersatzformulierungen müssen ALLE greifen; danach
@@ -115,7 +119,8 @@ def redact(draft):
     return {
         "thema": cluster.get("thema"),
         "ressort": cluster.get("ressort"),
-        "quellen": [{"titel": q.get("titel"), "url": q.get("url")} for q in draft.get("quellen_meta", [])],
+        "quellen": [{"titel": q.get("titel"), "url": q.get("url"), "medium": q.get("medium")}
+                    for q in draft.get("quellen_meta", [])],
         "quellen_verworfen": len(draft.get("quellen_verworfen") or []),
         "ablehnungsgruende": [grund_kurz(g) for g in draft.get("ablehnungsgruende", [])],
         "abbruch": bool(draft.get("abbruch")),
@@ -165,7 +170,8 @@ def clear_fail(today, name, draft):
 
 def sources_from_cluster(cluster, today):
     """Liest die Quelldateien eines Clusters als bereinigten, klar begrenzten
-    Quelltext. Quellen mit Prompt-Injection-Mustern werden verworfen.
+    Quelltext. Nur Originalartikel (Volltext + Original-URL); Teaser ohne
+    Original und Quellen mit Prompt-Injection-Mustern werden verworfen.
     Rückgabe: (quelltext, verworfene_ids, quellen_meta)."""
     from safety import clean_text, injection_hits
     src_dir = ROOT / "sources" / today
@@ -175,17 +181,24 @@ def sources_from_cluster(cluster, today):
         if not path.exists():
             continue
         item = json.loads(path.read_text(encoding="utf-8"))
+        url = item.get("url_original") or ""
+        if not item.get("volltext") or not url:
+            print(f"  Quelle {aid} verworfen: kein Originalartikel (nur Teaser)")
+            dropped.append(aid)
+            continue
         title = clean_text(item.get("title", ""))
-        body = clean_text(item.get("summary", ""))
+        body = clean_text(item.get("volltext", ""))
+        medium = clean_text(item.get("medium") or item.get("source_key", ""))
         if injection_hits(title + "\n" + body):
             print(f"  Quelle {aid} verworfen: Anweisungs-Text erkannt (Prompt-Injection?)")
             dropped.append(aid)
             continue
         texts.append(
-            f"<quelle nr=\"{n}\">\nTitel: {title}\nQuelle: {clean_text(item.get('source_key', ''))}\n"
-            f"URL: {clean_text(item.get('url', ''))}\nInhalt: {body}\n</quelle>"
+            f"<quelle nr=\"{n}\">\nTitel: {title}\nMedium: {medium}\n"
+            f"URL: {clean_text(url)}\nInhalt: {body}\n</quelle>"
         )
-        meta.append({"id": aid, "titel": title, "url": item.get("url", ""), "quelle": item.get("source_key", "")})
+        meta.append({"id": aid, "titel": title, "url": url, "medium": medium,
+                     "quelle": item.get("source_key", "")})
     return "\n\n".join(texts), dropped, meta
 
 
@@ -196,11 +209,30 @@ def fill(template, **kw):
     return out
 
 
+def regex_runden(text, base_prompt, quellen):
+    """Regex-Gate + bis zu MAX_REGEX_ROUNDS billige KI1-Korrekturen.
+    Rückgabe (text, rest_findings, runden). Läuft nach JEDER Textänderung."""
+    from ki_client import llm_call
+    from regex_gate import check
+    findings = check(text, quellen)
+    rounds = 0
+    while findings and rounds < MAX_REGEX_ROUNDS:
+        repair_prompt = (
+            base_prompt
+            + "\n\nDein bisheriger Text:\n<artikel>\n" + text + "\n</artikel>\n\n"
+            + "Er enthält Stil- und Formfehler. Korrigiere NUR diese Stellen und antworte mit dem kompletten korrigierten Artikel:\n"
+            + "\n".join(f"- {f['regel']}: {f['stelle']}" for f in findings)
+        )
+        text = llm_call(repair_prompt, model="LARGE").strip()
+        findings = check(text, quellen)
+        rounds += 1
+    return text, findings, rounds
+
+
 def write_stage():
     """KI1 schreibt pro Cluster; danach Regex-Gate mit bis zu 2 billigen Korrekturrunden.
     Bereits geschriebene/entschiedene Entwürfe werden übersprungen."""
-    from ki_client import llm_call, QuotaExhausted
-    from regex_gate import check
+    from ki_client import llm_call, QuotaExhausted, budget_rest, MIN_BUDGET_NEUER_ARTIKEL
     from common import work_days
     ki1_tpl = (ROOT / "prompts" / "ki1.txt").read_text(encoding="utf-8")
     jobs = []
@@ -216,6 +248,12 @@ def write_stage():
         if draft and not needs(draft, None, "write"):
             print(f"{name}: bereits '{draft.get('stage')}' — uebersprungen")
             continue
+        if budget_rest() < MIN_BUDGET_NEUER_ARTIKEL:
+            # Nicht anfangen, was das Tageskontingent nicht mehr fertig bekommt.
+            # Kein Fehler-Befund: der Cluster bleibt offen für den nächsten Lauf.
+            print(f"{name}: nur noch {budget_rest()} Anfragen im Tageskontingent — "
+                  f"neue Artikel erst im naechsten Lauf")
+            break
         draft.update({"tag": today, "cluster_idx": idx, "cluster": cluster})
         try:
             quellen, dropped, meta = sources_from_cluster(cluster, today)
@@ -227,18 +265,7 @@ def write_stage():
                 continue
             base_prompt = fill(ki1_tpl, QUELLEN=quellen)
             raw = llm_call(base_prompt, model="LARGE").strip()
-            findings = check(raw, quellen)
-            rounds = 0
-            while findings and rounds < MAX_REGEX_ROUNDS:
-                repair_prompt = (
-                    base_prompt
-                    + "\n\nDein bisheriger Text:\n<artikel>\n" + raw + "\n</artikel>\n\n"
-                    + "Er enthält Stil- und Formfehler. Korrigiere NUR diese Stellen und antworte mit dem kompletten korrigierten Artikel:\n"
-                    + "\n".join(f"- {f['regel']}: {f['stelle']}" for f in findings)
-                )
-                raw = llm_call(repair_prompt, model="LARGE").strip()
-                findings = check(raw, quellen)
-                rounds += 1
+            raw, findings, rounds = regex_runden(raw, base_prompt, quellen)
             draft.update({"text": raw, "regex_rest_findings": findings, "korrekturrunden_regex": rounds,
                           "stage": "geschrieben"})
             clear_fail(today, name, draft)
@@ -279,7 +306,7 @@ def ki2_check(text, quellen):
     if hits:
         return "rot", {"systemfehler": "Anweisungs-Text im Artikel"}, [f"Injection-Muster im Artikel: {hits}"]
     tpl = (ROOT / "prompts" / "ki2.txt").read_text(encoding="utf-8")
-    protokoll = llm_json(fill(tpl, ARTIKEL=text, QUELLEN=quellen), model="LARGE", temperature=0.0)
+    protokoll = llm_json(fill(tpl, ARTIKEL=text, QUELLEN=quellen), model="CHECK", temperature=0.0)
     ampel, gruende = ki2_verdict(protokoll, text)
     return ampel, protokoll, gruende
 
@@ -322,7 +349,10 @@ def evaluate_stage():
                     + f"Die Prüfung hat Stil-Befunde: {hinweis}\n"
                     + "Korrigiere NUR diese Stellen und antworte mit dem kompletten korrigierten Artikel."
                 )
-                draft["text"] = llm_call(repair_prompt, model="LARGE").strip()
+                neu = llm_call(repair_prompt, model="LARGE").strip()
+                neu, rest, rr = regex_runden(neu, ki1_base, quellen)
+                draft["gelb_protokoll"][-1].update({"regex_runden": rr, "regex_rest": len(rest)})
+                draft["text"] = neu
                 write_json(dpath, draft)  # Zwischenstand sichern
 
             draft["ki2_pruefrunden"] = rounds + 1
@@ -381,7 +411,7 @@ def ki3_check(text, quellen):
     from ki_client import llm_json
     from safety import ki3_verdict
     tpl = (ROOT / "prompts" / "ki3.txt").read_text(encoding="utf-8")
-    result = llm_json(fill(tpl, ARTIKEL=text, QUELLEN=quellen), model="LARGE", temperature=0.0)
+    result = llm_json(fill(tpl, ARTIKEL=text, QUELLEN=quellen), model="CHECK", temperature=0.0)
     entscheidung, gruende = ki3_verdict(result)
     return entscheidung, result, gruende
 
@@ -400,7 +430,7 @@ def legal_stage():
         # den von KI2 geprüften Text — nie ungeprüft nachgebesserten Text nutzen.
         if draft.get("text_vor_ki3"):
             draft["text"] = draft.pop("text_vor_ki3")
-            for k in ("ki3_nachbesserung", "ki2_nachpruefung", "special_checks_nachpruefung", "ki3_nachpruefung"):
+            for k in ("ki3_nachbesserung", "ki3_regex", "ki2_nachpruefung", "special_checks_nachpruefung", "ki3_nachpruefung"):
                 draft.pop(k, None)
         try:
             cluster = draft["cluster"]
@@ -419,9 +449,14 @@ def legal_stage():
                     reject(today, name, draft, f"KI3-Nachbesserung nicht anwendbar ({len(fehl)} Stelle(n) nicht gefunden)")
                     write_json(dpath, draft)
                     continue
+                # Regex-Gate auch nach den Ersatzformulierungen; die anschließende
+                # Nachprüfung (KI2 + Sonderprüfung + KI3) sieht den Endtext.
+                ki1_base = fill((ROOT / "prompts" / "ki1.txt").read_text(encoding="utf-8"), QUELLEN=quellen)
+                neu, rest, rr = regex_runden(neu, ki1_base, quellen)
                 draft["text_vor_ki3"] = draft["text"]
                 draft["text"] = neu
                 draft["ki3_nachbesserung"] = True
+                draft["ki3_regex"] = {"runden": rr, "rest": len(rest)}
                 # EINE Nachprüfung, keine Schleife
                 ampel2, prot2, gr2 = ki2_check(neu, quellen)
                 draft["ki2_nachpruefung"] = {"ampel": ampel2, "gruende": gr2, "protokoll": prot2}

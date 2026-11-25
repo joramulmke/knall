@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Get latest code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0
 
@@ -28,7 +28,7 @@ jobs:
       # Legitimer Wechsel beim Anbieter: Cache "sftp-hostkey-v1" unter
       # Actions → Caches löschen, nächster Lauf merkt sich den neuen Schlüssel.
       - name: Gemerkten SFTP-Host-Schluessel laden
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: /tmp/hostkeys/sftp_known_hosts
           key: sftp-hostkey-v1
@@ -53,14 +53,14 @@ jobs:
 
       - name: SFTP-Host-Schluessel merken
         if: env.NEW_SFTP_HOSTKEY == 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: /tmp/hostkeys/sftp_known_hosts
           key: sftp-hostkey-v1
 
       - name: Restore deploy-state cache
         id: restore_deploy_state_cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         continue-on-error: true
         with:
           path: /tmp/deploy-state-cache
@@ -313,7 +313,7 @@ jobs:
           echo -n "$AFTER" > /tmp/deploy-state-cache/last-sha.txt
 
       - name: Save deploy-state cache
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         continue-on-error: true
         with:
           path: /tmp/deploy-state-cache
@@ -350,7 +350,7 @@ jobs:
     name: Mirror
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Check secret presence
         env:
@@ -377,7 +377,7 @@ jobs:
       # Legitimer Wechsel beim Anbieter: Cache "mirror-hostkey-v1" unter
       # Actions → Caches löschen, nächster Lauf merkt sich den neuen Schlüssel.
       - name: Gemerkten Mirror-Host-Schluessel laden
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: /tmp/hostkeys/mirror_known_hosts
           key: mirror-hostkey-v1
@@ -402,7 +402,7 @@ jobs:
 
       - name: Mirror-Host-Schluessel merken
         if: env.NEW_MIRROR_HOSTKEY == 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: /tmp/hostkeys/mirror_known_hosts
           key: mirror-hostkey-v1

@@ -17,11 +17,18 @@ jobs:
     permissions:
       contents: write   # nur zum Committen der Pipeline-Ausgabe
     timeout-minutes: 60   # Free-Tier-Backoffs brauchen Puffer
+    env:
+      # Eigener LLM-Tageszähler (Default 50 = OpenRouter-Free-Kontingent)
+      KNALL_TAGESLIMIT_ANFRAGEN: ${{ vars.KNALL_TAGESLIMIT_ANFRAGEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      # Vorarbeit des Tages (Teaser + Entwürfe) aus dem privaten Actions-Cache
-      # holen: ein erneuter Lauf macht dort weiter, wo der letzte abbrach.
+      # Vorarbeit des Tages (Teaser, Volltexte, Entwürfe, Tageszähler) liegt
+      # VERSCHLÜSSELT im Actions-Cache: ein erneuter Lauf macht dort weiter, wo
+      # der letzte abbrach. Verschlüsselt, weil Workflows aus Fork-PRs Caches
+      # lesen können — der Schlüssel wird aus dem Secret OPENROUTER_API_KEY
+      # abgeleitet, das Fork-PRs nie bekommen. (Neuer API-Key → alter Cache
+      # nicht mehr lesbar → nur der Fortsetzungsstand des Tages geht verloren.)
       # EIN Datum für den ganzen Lauf (auch wenn er über Mitternacht UTC läuft)
       - name: Tag bestimmen
         id: day
@@ -32,23 +39,42 @@ jobs:
           echo "KNALL_DAY=$DAY" >> "$GITHUB_ENV"
 
       - name: Vorarbeit wiederherstellen
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
-          path: |
-            sources
-            drafts
-          key: knall-work-${{ steps.day.outputs.day }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .knall-cache/work.tar.enc
+          key: knall-work-enc-${{ steps.day.outputs.day }}-${{ github.run_id }}-${{ github.run_attempt }}
           # neuester Stand von heute; sonst der von gestern (offene Entwürfe fertig machen)
           restore-keys: |
-            knall-work-${{ steps.day.outputs.day }}-
-            knall-work-${{ steps.day.outputs.yesterday }}-
+            knall-work-enc-${{ steps.day.outputs.day }}-
+            knall-work-enc-${{ steps.day.outputs.yesterday }}-
 
-      - uses: actions/setup-python@v5
+      - name: Vorarbeit entschluesseln
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          F=.knall-cache/work.tar.enc
+          [ -s "$F" ] || { echo "Kein Cache-Stand — frischer Start"; exit 0; }
+          [ -n "$OPENROUTER_API_KEY" ] || { echo "::warning::Kein Schluessel — Cache ignoriert"; exit 0; }
+          KNALL_CACHE_PASS=$(printf '%s' "$OPENROUTER_API_KEY" | sha256sum | cut -d' ' -f1)
+          echo "::add-mask::$KNALL_CACHE_PASS"
+          export KNALL_CACHE_PASS
+          if openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:KNALL_CACHE_PASS -in "$F" | tar -xz; then
+            echo "Vorarbeit wiederhergestellt"
+          else
+            echo "::warning::Cache nicht entschluesselbar (API-Key gewechselt?) — frischer Start"
+            find sources drafts -mindepth 1 ! -name .gitkeep -delete
+          fi
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12'
 
       - name: Install deps
-        run: pip install pyyaml feedparser requests
+        run: pip install -r requirements.txt
+
+      # Fail-closed: sind die maschinellen Prüfungen kaputt, wird nichts geschrieben
+      - name: Pruefungen testen
+        run: python -m pytest -q tests
 
       - name: Aelteres als gestern aufraeumen (offene Reste → "abgelaufen")
         run: python scripts/common.py prune
@@ -56,7 +82,14 @@ jobs:
       - name: Collect feeds
         run: python scripts/collect.py
 
-      - name: Deterministic scoring
+      - name: Deterministic scoring (Teaser)
+        run: python scripts/score.py
+
+      # Originalartikel: Original-URL (auch hinter Google-News-Links) + Volltext
+      - name: Volltext der Originalartikel holen
+        run: python scripts/fulltext.py
+
+      - name: Deterministic scoring (Volltext)
         run: python scripts/score.py
 
       - name: KI0 curate
@@ -75,12 +108,14 @@ jobs:
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           KI_MODEL_LARGE: ${{ vars.KI_MODEL_LARGE }}
+          KI_MODEL_CHECK: ${{ vars.KI_MODEL_CHECK }}
         run: python scripts/router.py evaluate_stage
 
       - name: KI3 legal
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           KI_MODEL_LARGE: ${{ vars.KI_MODEL_LARGE }}
+          KI_MODEL_CHECK: ${{ vars.KI_MODEL_CHECK }}
         run: python scripts/router.py legal_stage
 
       - name: Publish
@@ -113,14 +148,27 @@ jobs:
           echo "::error::Push nach 4 Versuchen fehlgeschlagen"
           exit 1
 
-      - name: Vorarbeit sichern (auch nach Abbruch)
+      - name: Vorarbeit verschluesseln (auch nach Abbruch)
         if: always()
-        uses: actions/cache/save@v4
+        id: enc
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          [ -n "$OPENROUTER_API_KEY" ] || { echo "::warning::Kein Schluessel — Vorarbeit wird nicht gesichert"; exit 0; }
+          KNALL_CACHE_PASS=$(printf '%s' "$OPENROUTER_API_KEY" | sha256sum | cut -d' ' -f1)
+          echo "::add-mask::$KNALL_CACHE_PASS"
+          export KNALL_CACHE_PASS
+          mkdir -p .knall-cache
+          tar -cz sources drafts | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \
+            -pass env:KNALL_CACHE_PASS -out .knall-cache/work.tar.enc
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+
+      - name: Vorarbeit sichern
+        if: always() && steps.enc.outputs.ok == 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
-          path: |
-            sources
-            drafts
-          key: knall-work-${{ steps.day.outputs.day }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .knall-cache/work.tar.enc
+          key: knall-work-enc-${{ steps.day.outputs.day }}-${{ github.run_id }}-${{ github.run_attempt }}
 
   pages:
     needs: pipeline
@@ -134,7 +182,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           ref: ${{ github.ref_name }}   # neuester Stand inkl. Pipeline-Commit, nicht github.sha
       - name: Build site
@@ -143,9 +191,9 @@ jobs:
           cp -r site/* _site/
           cp -r published _site/artikel
           cp stats.json _site/stats.json
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: _site
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

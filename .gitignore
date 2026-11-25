@@ -7,3 +7,7 @@ drafts/*
 !drafts/.gitkeep
 sources/*
 !sources/.gitkeep
+
+# Verschlüsselter Cache-Container (nur im Workflow)
+.knall-cache/
+.pytest_cache/
