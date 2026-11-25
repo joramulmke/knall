@@ -1,6 +1,9 @@
 """
 ki_client.py — Einheitliche LLM-Aufrufe über OpenRouter, JSON-Zwang.
-Nutzt kleines Modell für KI0, großes für KI1–KI3.
+
+v2: Nutzt ausschließlich :free-Modelle, damit der Pipeline-Betrieb ohne
+API-Kosten bleibt. Modellwahl via Repo-Variablen KI_MODEL_SMALL / KI_MODEL_LARGE
+(optional — Defaults greifen bei leer/fehlend).
 
 Modell-Auflösung: Env-Variablen KI_MODEL_SMALL / KI_MODEL_LARGE.
 Leere oder fehlende Variablen fallen auf die Defaults zurück.
@@ -15,8 +18,9 @@ import urllib.error
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-DEFAULT_SMALL = "meta-llama/llama-3.1-8b-instruct"
-DEFAULT_LARGE = "anthropic/claude-sonnet-4.5"
+# :free-Modelle (Stand 2026-11-25, via openrouter.ai/api/v1/models verifiziert)
+DEFAULT_SMALL = "google/gemma-4-26b-a4b-it:free"
+DEFAULT_LARGE = "google/gemma-4-31b-it:free"
 
 
 def env_or(name, default):
@@ -26,7 +30,7 @@ def env_or(name, default):
 
 
 def resolve_model(model):
-    """'LARGE' oder None -> konkrete Modell-ID; leere Strings -> Defaults."""
+    """'LARGE' oder None/'' -> konkrete Modell-ID; leere Strings -> Defaults."""
     if model == "LARGE":
         return env_or("KI_MODEL_LARGE", DEFAULT_LARGE)
     if not model or not str(model).strip():
@@ -65,6 +69,8 @@ def llm_call(prompt, model=None, max_tokens=2000, retries=2):
                 body = exc.read().decode("utf-8", errors="replace")[:500]
             except Exception:
                 pass
+            # 429 (Rate-Limit: free-Tier ist limitiert) -> laenger warten
+            wait = 30 if exc.code == 429 else 5
             # 4xx (ausser 429): nicht wiederholen, Fehler ist deterministisch
             if 400 <= exc.code < 500 and exc.code != 429:
                 raise RuntimeError(
@@ -74,7 +80,7 @@ def llm_call(prompt, model=None, max_tokens=2000, retries=2):
         except Exception as exc:
             last_error = exc
         if attempt < retries:
-            time.sleep(5)
+            time.sleep(wait)
     raise RuntimeError(f"LLM-Aufruf endgueltig gescheitert: {last_error}")
 
 
