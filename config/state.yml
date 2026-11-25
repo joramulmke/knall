@@ -1,0 +1,4 @@
+name: knall-feeds-v1
+feeds: []
+# Wird bei jedem Lauf von collect.py anhand config/feeds.yml neu gefüllt.
+# Laufzeit-Zustand.

@@ -1,0 +1,204 @@
+# Knall-Feedliste v1
+# Alle URLs werden beim ersten Lauf verifiziert. Google-News-Spiegelfeeds
+# werden für Blätter ohne nativen RSS genutzt.
+
+definitions:
+  # ---------- Linke Presse ----------
+  taz_gesamt:
+    type: nativ
+    url: https://taz.de/!p4608;rss/
+    ressort: all
+  taz_wirtschaft:
+    type: nativ
+    url_pattern: "https://taz.de/Wirtschaft/!p{id};rss/"
+    note: p-ID beim ersten Lauf verifizieren
+    ressort: kohle
+  taz_gesellschaft:
+    type: nativ
+    url_pattern: "https://taz.de/Gesellschaft/!p{id};rss/"
+    note: p-ID beim ersten Lauf verifizieren
+    ressort: alle-gleich
+  taz_gesundheit:
+    type: nativ
+    url_pattern: "https://taz.de/Recht/!p{id};rss/"
+    note: p-ID beim ersten Lauf verifizieren
+    ressort: pflege
+  taz_oeko:
+    type: nativ
+    url_pattern: "https://taz.de/Umwelt/!p{id};rss/"
+    note: p-ID beim ersten Lauf verifizieren
+    ressort: klima
+
+  nd_gesamt:
+    type: nativ
+    url: https://nd-aktuell.de/rss/aktuell.php
+    ressort: all
+
+  # ---------- Überregionale ----------
+  tagesschau:
+    type: nativ
+    url: https://www.tagesschau.de/infoservices/alle-meldungen-100~rss2.xml
+    ressort: all
+  deutschlandfunk:
+    type: nativ
+    url: https://www.deutschlandfunk.de/rss-angebot-102.html
+    note: feed-URLs pro Ressort je nach Seite extrahieren
+    ressort: all
+
+  # ---------- Behörden / Institutionen ----------
+  destatis:
+    type: nativ
+    url: https://www.destatis.de/SiteGlobal/RSS/Meldungen.rdf
+    ressort: woche
+  verdi_pm:
+    type: google-news-mirror
+    query: "ver.di Pressemitteilung"
+    ressort: kohle
+  dgb_pm:
+    type: google-news-mirror
+    query: "DGB Pressemitteilung"
+    ressort: kohle
+  bundesagentur_arbeit:
+    type: google-news-mirror
+    query: "Bundesagentur für Arbeit Monatszahlen"
+    ressort: kohle
+  bmas:
+    type: google-news-mirror
+    query: "BMAS Pressemitteilung"
+    ressort: kohle
+  bmg:
+    type: google-news-mirror
+    query: "Bundesministerium Gesundheit Pressemitteilung"
+    ressort: pflege
+  umweltbundesamt:
+    type: google-news-mirror
+    query: "Umweltbundesamt Bericht"
+    ressort: klima
+
+  # ---------- Justiz / Verbraucher ----------
+  gerichte:
+    type: google-news-mirror
+    query: "BGH Urteil Kündigung Miete"
+    ressort: woche
+  test_de:
+    type: google-news-mirror
+    query: "Stiftung Warentest Kostentest"
+    ressort: woche
+
+  # ---------- Ostdeutsche Lokalpresse (maximale Abdeckung) ----------
+  # Nicht-Berlin: Brandenburg, MV, Sachsen, Sachsen-Anhalt, Thüringen.
+  # Google-News-Spiegelfeeds pro Blatt, weil viele keinen nativen RSS bieten.
+  moz:
+    type: google-news-mirror
+    query: "site:moz.de"
+    region: brandenburg
+    ressort: lokal
+  lr_online:
+    type: google-news-mirror
+    query: "site:lr-online.de"
+    region: brandenburg
+    ressort: lokal
+  lvz:
+    type: nativ
+    url: https://www.lvz.de/arc/outboundfeeds/rss/
+    region: sachsen
+    ressort: lokal
+  saechsische:
+    type: google-news-mirror
+    query: "site:saechsische.de"
+    region: sachsen
+    ressort: lokal
+  freie_presse:
+    type: google-news-mirror
+    query: "site:freiepresse.de"
+    region: sachsen
+    ressort: lokal
+  mz:
+    type: google-news-mirror
+    query: "site:mz-web.de"
+    region: sachsen-anhalt
+    ressort: lokal
+  volksstimme:
+    type: google-news-mirror
+    query: "site:volksstimme.de"
+    region: sachsen-anhalt
+    ressort: lokal
+  ostsee_zeitung:
+    type: google-news-mirror
+    query: "site:ostsee-zeitung.de"
+    region: mecklenburg-vorpommern
+    ressort: lokal
+  nordkurier:
+    type: google-news-mirror
+    query: "site:nordkurier.de"
+    region: mecklenburg-vorpommern
+    ressort: lokal
+  thueringer_allgemeine:
+    type: google-news-mirror
+    query: "site:thueringer-allgemeine.de"
+    region: thueringen
+    ressort: lokal
+  ossl:
+    type: google-news-mirror
+    query: "site:osradio.de"
+    region: brandenburg
+    ressort: lokal
+  thueringer_post:
+    type: google-news-mirror
+    query: "site:tp-online.de"
+    region: thueringen
+    ressort: lokal
+
+# --- Score-Gewichte (score.py) ---
+scores:
+  keywords_kohle:
+    - Streik
+    - Tarif
+    - Lohn
+    - Kündigung
+    - Arbeitnehmer
+    - Gewerkschaft
+    - Renten
+    - Mindestlohn
+    - Leiharbeit
+  keywords_wohnen:
+    - Miete
+    - Zwangsräumung
+    - Mieter
+    - Vermieter
+    - Wohnung
+    - Spekulant
+  keywords_pflege:
+    - Pflege
+    - Klinik
+    - Krankenhaus
+    - Arzt
+    - Gesundheitsamt
+    - Geburtsstation
+  keywords_klima:
+    - Strom
+    - Heizung
+    - Erdgas
+    - Klimaanpassung
+    - Flut
+    - Hitzewelle
+  keywords_alle_gleich:
+    - Diskriminierung
+    - Rassismus
+    - Schutz
+    - Asyl
+    - Queer
+  keywords_region_bonus:
+    - Frankfurt an der Oder
+    - Leipzig
+    - Dresden
+    - Magdeburg
+    - Chemnitz
+    - Rostock
+    - Erfurt
+    - Schwerin
+    - Cottbus
+    - Görlitz
+  region_bonus_ost: 2
+  conflict_bonus: 1
+  minimum_score_to_advance: 4

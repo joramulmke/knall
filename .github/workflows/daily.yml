@@ -1,0 +1,98 @@
+name: Knall Daily Pipeline
+
+on:
+  schedule:
+    - cron: '0 5 * * *'   # 05:00 UTC = 06:00 MEZ
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: knall-daily
+  cancel-in-progress: false
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install deps
+        run: pip install pyyaml feedparser requests
+
+      - name: Collect feeds
+        run: python scripts/collect.py
+
+      - name: Deterministic scoring
+        run: python scripts/score.py
+
+      - name: KI0 curate
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          KI_MODEL_SMALL: ${{ vars.KI_MODEL_SMALL }}
+        run: python scripts/ki_client.py curate
+
+      - name: KI1 write + regex gate
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          KI_MODEL_LARGE: ${{ vars.KI_MODEL_LARGE }}
+        run: python scripts/router.py write_stage
+
+      - name: KI2 check
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          KI_MODEL_LARGE: ${{ vars.KI_MODEL_LARGE }}
+        run: python scripts/router.py check_stage
+
+      - name: Special checks + route
+        run: python scripts/router.py route_stage
+
+      - name: KI3 legal
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          KI_MODEL_LARGE: ${{ vars.KI_MODEL_LARGE }}
+        run: python scripts/router.py legal_stage
+
+      - name: Publish
+        run: python scripts/publish.py
+
+      - name: Update stats
+        run: python scripts/stats.py
+
+      - name: Commit pipeline output
+        run: |
+          git config user.name "knall-bot"
+          git config user.email "bot@knall.local"
+          git add -A sources drafts published rejected stats.json
+          git diff --cached --quiet || git commit -m "pipeline: $(date -u +%F)"
+          git push
+
+  pages:
+    needs: pipeline
+    if: always() && needs.pipeline.result == 'success'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build site
+        run: |
+          mkdir -p _site
+          cp -r site/* _site/
+          cp -r published _site/artikel
+          cp stats.json _site/stats.json
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
