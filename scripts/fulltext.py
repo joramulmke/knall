@@ -32,7 +32,7 @@ import requests
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from safety import clean_text  # noqa: E402
-from common import run_day  # noqa: E402
+from common import run_day, zu_alt, alter_tage, MAX_ALTER_TAGE  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 MAX_ITEMS = int(os.environ.get("KNALL_VOLLTEXT_MAX") or 60)
@@ -119,7 +119,7 @@ def google_original_url(url, session):
 
 
 def volltext(url, session):
-    """Rückgabe (text, sitename) oder (None, grund)."""
+    """Rückgabe (text, (sitename, datum)) oder (None, grund)."""
     import trafilatura
     if not erlaubt(url, session):
         return None, "robots.txt verbietet Abruf"
@@ -137,13 +137,14 @@ def volltext(url, session):
     text = clean_text(text or "")
     if len(text) < MIN_ZEICHEN:
         return None, f"zu wenig Text ({len(text)} Zeichen, Paywall?)"
-    sitename = None
+    sitename = datum = None
     try:
         meta = trafilatura.extract_metadata(html, default_url=url)
         sitename = clean_text(getattr(meta, "sitename", None) or "") or None
+        datum = getattr(meta, "date", None) or None    # "YYYY-MM-DD"
     except Exception:
         pass
-    return text[:MAX_ZEICHEN], sitename
+    return text[:MAX_ZEICHEN], (sitename, datum)
 
 
 # --- Gedächtnis pro Feed: wer blockt (403/Paywall/robots), kommt nach hinten ---
@@ -211,7 +212,16 @@ def main():
             pro_feed[it["source_key"]] = pro_feed.get(it["source_key"], 0) + 1
 
     # Reihenfolge: Teaser-Score × Erfolgsquote des Feeds (blockende Feeds nach hinten)
-    offen = [(p, it) for p, it in items if not it.get("volltext_status")]
+    offen = []
+    for p, it in items:
+        if it.get("volltext_status"):
+            continue
+        if zu_alt(it, heute):
+            # alte Meldung (Feed-Datum): kein Abruf, keine Story
+            it["volltext_status"] = f"uebersprungen: aelter als {MAX_ALTER_TAGE} Tage"
+            p.write_text(json.dumps(it, ensure_ascii=False, indent=2), encoding="utf-8")
+            continue
+        offen.append((p, it))
     offen.sort(key=lambda x: -((x[1].get("score") or 0) + 1) * quote(ged, x[1]["source_key"]))
 
     dauerhaft = set()
@@ -265,12 +275,16 @@ def main():
                     if text is None:
                         status = info
                     else:
+                        sitename, datum = info
                         item.update({
                             "url_original": url,
                             "volltext": text,
                             "vollstaendig": True,
-                            "medium": item.get("medium") or info or urllib.parse.urlsplit(url).netloc,
+                            "datum_original": datum,
+                            "medium": item.get("medium") or sitename or urllib.parse.urlsplit(url).netloc,
                         })
+                        if zu_alt(item, heute):
+                            status = f"zu alt (Artikel vom {datum})"
                         bekannte_urls.add(url)
         except requests.HTTPError as exc:
             code = exc.response.status_code if exc.response is not None else "?"

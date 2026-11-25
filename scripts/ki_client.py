@@ -43,6 +43,7 @@ v8 (zweiter Anbieter Groq):
   langen Prompts oft leer antworten). Modelle: KI_GROQ_MODELS (kommagetrennt).
 """
 import os
+import re
 import json
 import sys
 import time
@@ -60,7 +61,10 @@ DEFAULT_CHECK = "nvidia/nemotron-3.5-lightning:free"
 DEFAULT_CHECK_GROQ = "groq:openai/gpt-oss-120b"
 # Groq-Ersatz für KI0/KI1 und zweite Groq-Prüferin. Nicht (mehr) angebotene
 # Modelle fallen über die Groq-Modellliste automatisch heraus.
-DEFAULT_GROQ_MODELS = ["groq:openai/gpt-oss-120b", "groq:llama-3.3-70b-versatile"]
+DEFAULT_GROQ_MODELS = ["groq:openai/gpt-oss-120b", "groq:openai/gpt-oss-20b",
+                       "groq:llama-3.3-70b-versatile"]
+GROQ_TPM_VERSUCHE = 3            # Token-pro-Minute-Limit: so oft die genannte Wartezeit abwarten
+GROQ_TPM_MAX_WARTEN = 65
 GROQ = "groq:"
 GROQ_TAGESLIMIT = int(os.environ.get("KNALL_GROQ_TAGESLIMIT") or 900)
 # Eigene Kennung: Groq (Cloudflare) sperrt die Python-Standardkennung
@@ -225,6 +229,7 @@ def available_groq_models():
         with urllib.request.urlopen(req, timeout=30) as resp:
             data = json.loads(resp.read())
         _GROQ_AVAILABLE = {m["id"] for m in data.get("data", [])}
+        print(f"  Groq-Modelle verfuegbar: {', '.join(sorted(_GROQ_AVAILABLE))}")
     except Exception as exc:
         print(f"  Groq-Modell-Liste nicht abrufbar ({exc}) — nutze Groq ungeprueft")
         _GROQ_AVAILABLE = set()
@@ -405,6 +410,11 @@ def llm_call(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.3)
                         break
                     last_error = RuntimeError(f"HTTP 429 fuer {chain_model!r}: {body}")
                     plan = BACKOFF_429
+                    m = re.search(r"try again in ([\d.]+)\s*s", body) if groq else None
+                    if m:
+                        # Groq nennt die Wartezeit bis das Minutenlimit wieder frei ist
+                        w = min(GROQ_TPM_MAX_WARTEN, int(float(m.group(1))) + 2)
+                        plan = [w] * GROQ_TPM_VERSUCHE
                     if attempt > len(plan):
                         sperre_modell(chain_model)
                 elif exc.code in (401, 402, 403):
