@@ -59,6 +59,22 @@ def kontingent(anfragen, tage=28):
     }
 
 
+def volltext_bilanz():
+    """Erfolgsquote der Originalartikel pro Feed (letzte 14 Tage) aus dem
+    Gedächtnis von fulltext.py — zeigt, welche Feeds dauerhaft blocken."""
+    f = ROOT / "archiv" / "volltext_quellen.json"
+    try:
+        ged = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+    except json.JSONDecodeError:
+        return {}
+    out = {}
+    for feed, tage in sorted(ged.items()):
+        ok = sum(t.get("ok", 0) for t in tage.values())
+        fehl = sum(t.get("fehl", 0) for t in tage.values())
+        out[feed] = {"ok": ok, "blockiert": fehl, "tage": len(tage)}
+    return out
+
+
 def main():
     # Jeden Tag mit Einträgen neu berechnen (idempotent; erfasst auch
     # nachträglich "abgelaufen" markierte Entwürfe älterer Tage).
@@ -86,6 +102,7 @@ def main():
         if z.get("anfragen", 0) >= 0.8 * limit:
             data[day]["warnung_kontingent"] = True
     data["_kontingent"] = kontingent(anfragen)
+    data["_volltext"] = volltext_bilanz()
     STATS.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(data, ensure_ascii=False)[:2000])
 

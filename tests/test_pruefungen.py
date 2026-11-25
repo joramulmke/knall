@@ -85,3 +85,11 @@ def test_oeffentlicher_befund_ohne_text():
              "quellen_text": "Quelle", "text_vor_ki3": "Geheimer Text",
              "cluster": {"thema": "T"}, "ablehnungsgruende": ["x"]}
     assert "Geheimer Text" not in str(redact(draft)) and "Quelle" not in str(redact(draft))
+
+
+def test_volltext_gedaechtnis():
+    from fulltext import blockade, quote
+    assert blockade("HTTP 403") and blockade("zu wenig Text (300 Zeichen, Paywall?)")
+    assert blockade("robots.txt verbietet Abruf") and not blockade("ok") and not blockade("HTTP 500")
+    ged = {"gut": {"2026-11-25": {"ok": 6, "fehl": 0}}, "blocker": {"2026-11-25": {"ok": 0, "fehl": 7}}}
+    assert quote(ged, "gut") > quote(ged, "neu") > quote(ged, "blocker")

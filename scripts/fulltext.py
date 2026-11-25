@@ -6,8 +6,12 @@ Grundsatz: Geschrieben wird nur aus Originalartikeln. Ein Teaser, dessen
 Original-URL oder Volltext nicht zu bekommen ist (Paywall, robots.txt,
 Abruffehler), kommt NICHT weiter (advance=False nach score.py).
 
-- Nur die Top-Kandidaten nach Teaser-Score (KNALL_VOLLTEXT_MAX, max.
-  KNALL_VOLLTEXT_PRO_FEED pro Feed) — schont die Server.
+- Nur die Top-Kandidaten nach Teaser-Score × Erfolgsquote des Feeds
+  (KNALL_VOLLTEXT_MAX = 60, max. KNALL_VOLLTEXT_PRO_FEED pro Feed).
+- Feeds, die blocken (403, Paywall, robots.txt): nach 2 Blockaden im Lauf
+  werden ihre restlichen Teaser übersprungen; ein Gedächtnis über 14 Tage
+  (archiv/volltext_quellen.json, verschlüsselter Cache) sortiert sie nach
+  hinten, Feeds ganz ohne Erfolg bekommen nur noch 1 Probe pro Lauf.
 - robots.txt wird respektiert, 1 s Pause zwischen Abrufen.
 - Duplikate (gleiche Original-URL aus zwei Feeds) werden verworfen.
 - Fortsetzbar: bereits bearbeitete Teaser (volltext_status) werden übersprungen.
@@ -31,7 +35,7 @@ from safety import clean_text  # noqa: E402
 from common import run_day  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-MAX_ITEMS = int(os.environ.get("KNALL_VOLLTEXT_MAX") or 40)
+MAX_ITEMS = int(os.environ.get("KNALL_VOLLTEXT_MAX") or 60)
 MAX_PRO_FEED = int(os.environ.get("KNALL_VOLLTEXT_PRO_FEED") or 6)
 MIN_ZEICHEN = 800        # darunter: Paywall-Teaser o. ä. → kein Originalartikel
 MAX_ZEICHEN = 8000       # Prompt-Länge begrenzen (3 Quellen pro Cluster)
@@ -142,8 +146,55 @@ def volltext(url, session):
     return text[:MAX_ZEICHEN], sitename
 
 
+# --- Gedächtnis pro Feed: wer blockt (403/Paywall/robots), kommt nach hinten ---
+GEDAECHTNIS = ROOT / "archiv" / "volltext_quellen.json"   # liegt im verschlüsselten Cache
+GEDAECHTNIS_TAGE = 14
+SPERR_IM_LAUF = 2         # nach so vielen Blockaden im Lauf: restliche Teaser des Feeds überspringen
+DAUERHAFT_MIN_VERSUCHE = 6  # so viele Versuche ohne einen Erfolg (14 Tage) → nur noch 1 Probe pro Lauf
+
+
+def blockade(status):
+    """Liegt es an der Seite (blockt/Paywall), nicht am einzelnen Artikel?"""
+    return status.startswith(("HTTP 401", "HTTP 403", "HTTP 451", "robots.txt", "zu wenig Text"))
+
+
+def gedaechtnis_laden():
+    try:
+        return json.loads(GEDAECHTNIS.read_text(encoding="utf-8")) if GEDAECHTNIS.exists() else {}
+    except json.JSONDecodeError:
+        return {}
+
+
+def bilanz(ged, feed):
+    """(ok, fehl) der letzten GEDAECHTNIS_TAGE Tage für einen Feed."""
+    tage = ged.get(feed, {})
+    grenze = sorted(tage)[-GEDAECHTNIS_TAGE:] if tage else []
+    ok = sum(tage[t].get("ok", 0) for t in grenze)
+    fehl = sum(tage[t].get("fehl", 0) for t in grenze)
+    return ok, fehl
+
+
+def quote(ged, feed):
+    """Geglättete Erfolgsquote (Laplace): unbekannte Feeds starten bei 0,5."""
+    ok, fehl = bilanz(ged, feed)
+    return (ok + 1) / (ok + fehl + 2)
+
+
+def gedaechtnis_speichern(ged, heute, ergebnisse):
+    for feed, (ok, fehl) in ergebnisse.items():
+        tag = ged.setdefault(feed, {}).setdefault(heute, {"ok": 0, "fehl": 0})
+        tag["ok"] += ok
+        tag["fehl"] += fehl
+    for feed in list(ged):  # nur die letzten Tage behalten
+        for t in sorted(ged[feed])[:-GEDAECHTNIS_TAGE]:
+            del ged[feed][t]
+    GEDAECHTNIS.parent.mkdir(parents=True, exist_ok=True)
+    GEDAECHTNIS.write_text(json.dumps(ged, ensure_ascii=False, indent=1, sort_keys=True), encoding="utf-8")
+
+
 def main():
-    src_dir = ROOT / "sources" / run_day()
+    heute = run_day()
+    src_dir = ROOT / "sources" / heute
     if not src_dir.exists():
         print("Keine Teaser fuer heute")
         return
@@ -151,29 +202,48 @@ def main():
     for path in sorted(src_dir.glob("*.json")):
         items.append((path, json.loads(path.read_text(encoding="utf-8"))))
 
+    ged = gedaechtnis_laden()
     bekannte_urls = {it.get("url_original") for _, it in items if it.get("volltext")}
-    erledigt = sum(1 for _, it in items if it.get("volltext_status"))
-    offen = [(p, it) for p, it in items if not it.get("volltext_status")]
-    offen.sort(key=lambda x: -(x[1].get("score") or 0))
-
+    erledigt = sum(1 for _, it in items if it.get("volltext_status") and not it["volltext_status"].startswith("uebersprungen"))
     pro_feed = {}
     for _, it in items:
         if it.get("volltext_status"):
             pro_feed[it["source_key"]] = pro_feed.get(it["source_key"], 0) + 1
-    auswahl = []
-    for p, it in offen:
-        if erledigt + len(auswahl) >= MAX_ITEMS:
-            break
-        if pro_feed.get(it["source_key"], 0) >= MAX_PRO_FEED:
-            continue
-        pro_feed[it["source_key"]] = pro_feed.get(it["source_key"], 0) + 1
-        auswahl.append((p, it))
+
+    # Reihenfolge: Teaser-Score × Erfolgsquote des Feeds (blockende Feeds nach hinten)
+    offen = [(p, it) for p, it in items if not it.get("volltext_status")]
+    offen.sort(key=lambda x: -((x[1].get("score") or 0) + 1) * quote(ged, x[1]["source_key"]))
+
+    dauerhaft = set()
+    for feed in {it["source_key"] for _, it in offen}:
+        ok, fehl = bilanz(ged, feed)
+        if ok == 0 and fehl >= DAUERHAFT_MIN_VERSUCHE:
+            dauerhaft.add(feed)
+    if dauerhaft:
+        print(f"Feeds ohne Erfolg in {GEDAECHTNIS_TAGE} Tagen (nur 1 Probe): {', '.join(sorted(dauerhaft))}")
 
     session = requests.Session()
     session.headers.update({"User-Agent": UA, "Accept-Language": "de-DE,de;q=0.9"})
     google_gesperrt = False
     stat = {}
-    for path, item in auswahl:
+    ergebnisse = {}          # feed → [ok, fehl] (nur Blockaden zählen als fehl)
+    blockiert_im_lauf = {}   # feed → Blockaden in diesem Lauf
+    proben = set()
+    abgerufen = 0
+    for path, item in offen:
+        if erledigt + abgerufen >= MAX_ITEMS:
+            break
+        feed = item["source_key"]
+        if pro_feed.get(feed, 0) >= MAX_PRO_FEED:
+            continue
+        if blockiert_im_lauf.get(feed, 0) >= SPERR_IM_LAUF:
+            continue  # Status bleibt leer → ein späterer Lauf darf es erneut versuchen
+        if feed in dauerhaft:
+            if feed in proben:
+                continue
+            proben.add(feed)
+        pro_feed[feed] = pro_feed.get(feed, 0) + 1
+        abgerufen += 1
         status = "ok"
         try:
             url = item.get("url", "")
@@ -210,11 +280,21 @@ def main():
         except Exception as exc:
             status = f"Fehler: {str(exc)[:120]}"
         item["volltext_status"] = status
-        stat[status.split(" (")[0]] = stat.get(status.split(" (")[0], 0) + 1
+        e = ergebnisse.setdefault(feed, [0, 0])
+        if status == "ok":
+            e[0] += 1
+        elif blockade(status):
+            e[1] += 1
+            blockiert_im_lauf[feed] = blockiert_im_lauf.get(feed, 0) + 1
+            if blockiert_im_lauf[feed] == SPERR_IM_LAUF:
+                print(f"  {feed}: {SPERR_IM_LAUF}x blockiert — restliche Teaser dieses Feeds uebersprungen")
+        k = status.split(" (")[0]
+        stat[k] = stat.get(k, 0) + 1
         path.write_text(json.dumps(item, ensure_ascii=False, indent=2), encoding="utf-8")
-        print(f"{item['id']} [{item['source_key']}]: {status}")
+        print(f"{item['id']} [{feed}]: {status}")
         time.sleep(PAUSE_S)
-    print(f"Volltext: {len(auswahl)} abgerufen — " + ", ".join(f"{k}: {v}" for k, v in sorted(stat.items())))
+    gedaechtnis_speichern(ged, heute, ergebnisse)
+    print(f"Volltext: {abgerufen} abgerufen — " + ", ".join(f"{k}: {v}" for k, v in sorted(stat.items())))
 
 
 if __name__ == "__main__":

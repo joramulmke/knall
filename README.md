@@ -6,7 +6,7 @@ Automatisierte Boulevard-Pipeline: links, arbeitnehmerfreundlich, ökologisch, a
 
 1. **Sammeln** (GitHub Actions, täglich 06:00): RSS-Feeds von taz, nd, tagesschau, Deutschlandfunk, Ostdeutscher Lokalpresse (via Google-News-Spiegelfeeds), Behörden und Gewerkschaften werden gepollt.
 2. **Maschinelle Vorbewertung** (Python, kostenlos): Keyword-Score nach Ressort auf den Teasern.
-3. **Originalartikel holen** (`fulltext.py`): Für die besten Teaser wird die Original-URL ermittelt (Google-News-Links werden aufgelöst) und der Volltext gelesen (robots.txt wird respektiert). Paywall-Teaser, Duplikate und nicht auflösbare Links fallen raus — **geschrieben wird nur aus Originalartikeln**. Danach erneute Bewertung auf dem Volltext.
+3. **Originalartikel holen** (`fulltext.py`): Für die besten Teaser wird die Original-URL ermittelt (Google-News-Links werden aufgelöst) und der Volltext gelesen (robots.txt wird respektiert). Paywall-Teaser, Duplikate und nicht auflösbare Links fallen raus — **geschrieben wird nur aus Originalartikeln**. Bis zu 60 Abrufe pro Lauf; Feeds, die blocken (403, Paywall, robots.txt), werden nach 2 Blockaden im Lauf übersprungen und über ein 14-Tage-Gedächtnis nach hinten sortiert (Bilanz pro Feed: `stats.json` → `_volltext`). Danach erneute Bewertung auf dem Volltext.
 4. **KI0 — Kuratorin** (kleines LLM): wählt 1–3 Themen, bildet Quellen-Cluster.
 5. **KI1 — Schreiberin** (großes LLM): schreibt aus den Quellen, Maximum 250 Wörter, Sprachgesetz im Prompt.
 6. **Regex-Gate** (Python): Stil- und Formfehler maschinell erkannt — Konjunktive, Passiv, Floskeln, Ansprache, GROSSBUCHSTABEN. Fehlertexte gehen als billige Korrekturrunde zurück zu KI1. Läuft nach **jeder** Textänderung (Entwurf, Gelb-Korrektur, KI3-Ersatzformulierung).
