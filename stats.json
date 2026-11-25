@@ -1,1 +1,42 @@
-{}
+{
+  "2026-11-25": {
+    "rot": 0,
+    "gelb": 0,
+    "ki3_stopp": 0,
+    "fehler": 3,
+    "abgelaufen": 0,
+    "published": 0,
+    "gruende": [
+      "technischer Fehler in write (wird wiederholt): LLM-Aufruf: Warte-Budget erschoepft. Letzter Fehler: HTTP 429 fuer '…': {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"inclu",
+      "technischer Fehler in write (wird wiederholt): LLM-Aufruf: Warte-Budget erschoepft. Letzter Fehler: inclusionai/ling-3.2-flash:free lieferte leeren content (nur Reasoning?)",
+      "technischer Fehler in write (wird wiederholt): LLM-Aufruf: Warte-Budget erschoepft. Letzter Fehler: HTTP 429 fuer '…': {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"inclu"
+    ],
+    "anfragen": {
+      "anfragen": 48,
+      "ok": 1,
+      "r429": 18,
+      "fehler": 0,
+      "leer": 29,
+      "modelle": {
+        "google/gemma-4-26b-a4b-it:free": 4,
+        "nvidia/nemotron-3.5-lightning:free": 16,
+        "baidu/ernie-5.5-flash-preview:free": 13,
+        "google/gemma-4-31b-it:free": 12,
+        "inclusionai/ling-3.2-flash:free": 3
+      },
+      "limit": 50
+    },
+    "warnung_kontingent": true
+  },
+  "_kontingent": {
+    "tage": 1,
+    "limit": 50,
+    "schnitt_anfragen": 48.0,
+    "max_anfragen": 48,
+    "tage_am_limit": 0,
+    "tage_ueber_80_prozent": 1,
+    "r429_gesamt": 18,
+    "anteil_429": 0.375,
+    "im_kontingent": true
+  }
+}

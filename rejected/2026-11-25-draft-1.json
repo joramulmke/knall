@@ -1,0 +1,29 @@
+{
+  "thema": "80 Berliner Häuser ohne Heizung – Mieter zwischen Kälte und Eigenbedarfs-Tricks",
+  "ressort": "wohnen",
+  "quellen": [
+    {
+      "titel": "Charlottenburg-Wilmersdorf | Weil Eigentümer nicht zahlen: 80 Wohnhäuser ohne Heizung",
+      "url": "https://www.nd-aktuell.de/artikel/1204130.charlottenburg-wilmersdorf-weil-eigentuemer-nicht-zahlen-wohnhaeuser-ohne-heizung.html",
+      "medium": "nd"
+    },
+    {
+      "titel": "BGH-Urteil – Schadenersatz bei vorgetäuschtem Eigenbedarf",
+      "url": "https://www.berliner-mieterverein.de/magazin/online/mm1009/100908b.htm",
+      "medium": "Berliner Mieterverein"
+    }
+  ],
+  "quellen_verworfen": 0,
+  "ablehnungsgruende": [
+    "technischer Fehler in write (wird wiederholt): LLM-Aufruf: Warte-Budget erschoepft. Letzter Fehler: inclusionai/ling-3.2-flash:free lieferte leeren content (nur Reasoning?)"
+  ],
+  "abbruch": true,
+  "gelb_erschoepft": false,
+  "ki2_endampel": null,
+  "ki2_validierung": null,
+  "ki2": null,
+  "special_checks": null,
+  "ki3": null,
+  "ki3_validierung": null,
+  "ki3_nachbesserung": false
+}

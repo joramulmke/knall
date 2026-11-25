@@ -1,0 +1,24 @@
+{
+  "thema": "Streik bei den Leipziger Verkehrsbetrieben geht in Tag drei",
+  "ressort": "kohle",
+  "quellen": [
+    {
+      "titel": "Tag drei des Streiks bei den LVB: Über Pressemitteilungen",
+      "url": "https://www.l-iz.de/leben/gesellschaft/2026/03/tag-drei-des-streiks-bei-den-lvb-ueber-pressemitteilungen-649159",
+      "medium": "Leipziger Zeitung"
+    }
+  ],
+  "quellen_verworfen": 0,
+  "ablehnungsgruende": [
+    "technischer Fehler in write (wird wiederholt): LLM-Aufruf: Warte-Budget erschoepft. Letzter Fehler: HTTP 429 fuer '…': {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"inclu"
+  ],
+  "abbruch": true,
+  "gelb_erschoepft": false,
+  "ki2_endampel": null,
+  "ki2_validierung": null,
+  "ki2": null,
+  "special_checks": null,
+  "ki3": null,
+  "ki3_validierung": null,
+  "ki3_nachbesserung": false
+}
