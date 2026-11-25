@@ -1,11 +1,10 @@
 """
 ki_client.py — Einheitliche LLM-Aufrufe über OpenRouter, JSON-Zwang.
 
-v3: Free-Tier-Resilienz. Free-Modelle teilen sich einen Upstream-Pool und
-werden haeufig per 429 gedrosselt. Gegenschwung:
-- Exponentielles Backoff bis zu 4 Versuche pro Modell (30/60/120/240s)
-- Automatischer Fallback auf ein anderes Free-Modell, wenn eines
-  dauerhaft 429 liefert (Fallback-Kette unten)
+v4: Robustheit gegen leere Antworten. Manche Free-Modelle (besonders
+Reasoning-Modelle wie Nemotron) liefern text="reasoning" und ein LEERES
+content-Feld, wenn das Denk-Budget aufgebraucht ist. Solche Antworten
+zaehlen als wiederholbarer Fehler: Retry, dann Fallback-Kette.
 
 Modell-Auflösung: Env-Variablen KI_MODEL_SMALL / KI_MODEL_LARGE (optional).
 """
@@ -23,15 +22,13 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 DEFAULT_SMALL = "google/gemma-4-26b-a4b-it:free"
 DEFAULT_LARGE = "google/gemma-4-31b-it:free"
 
-# Fallback-Kette: wenn das Primärmodell persistent 429 liefert, wird der Reihe
-# nach probiert. Unterschiedliche Provider verteilen die Drossel-Risiken.
+# Fallback-Kette bei persistentem 429 oder leeren Antworten.
 FALLBACK_CHAIN = [
     "nvidia/nemotron-3.5-lightning:free",
     "baidu/ernie-5.5-flash-preview:free",
     "inclusionai/ling-3.2-flash:free",
 ]
 
-# Backoff-Wartezeiten (Sekunden) bei 429
 BACKOFF = [30, 60, 120, 240]
 
 
@@ -46,6 +43,10 @@ def resolve_model(model):
     if not model or not str(model).strip():
         return env_or("KI_MODEL_SMALL", DEFAULT_SMALL)
     return str(model).strip()
+
+
+class EmptyResponse(Exception):
+    """Modell antwortete mit leerem content (z. B. nur Reasoning)."""
 
 
 def _post_once(model, prompt, max_tokens):
@@ -68,19 +69,25 @@ def _post_once(model, prompt, max_tokens):
     )
     with urllib.request.urlopen(req, timeout=120) as resp:
         data = json.loads(resp.read())
-    return data["choices"][0]["message"]["content"]
+    content = (data.get("choices") or [{}])[0].get("message", {}).get("content")
+    if not content or not str(content).strip():
+        raise EmptyResponse(f"{model} lieferte leeren content (nur Reasoning?)")
+    return str(content)
 
 
 def llm_call(prompt, model=None, max_tokens=2000):
-    """Ruft LLM auf. Bei persistentem 429: Backoff, dann Fallback-Modelle.
-    4xx (nicht 429): sofort crashen — Fehler ist deterministisch."""
+    """Ruft LLM auf. Bei persistentem 429 oder leeren Antworten: Backoff,
+    dann Fallback-Modelle. 4xx (nicht 429): sofort crashen."""
     primary = resolve_model(model)
     chain = [primary] + [m for m in FALLBACK_CHAIN if m != primary]
     last_error = None
     for chain_model in chain:
         for attempt, wait in enumerate(BACKOFF, start=1):
             try:
-                return _post_once(chain_model, prompt, max_tokens)
+                out = _post_once(chain_model, prompt, max_tokens)
+                if chain_model != primary:
+                    print(f"  (Antwort kam via Fallback-Modell: {chain_model})")
+                return out
             except urllib.error.HTTPError as exc:
                 body = ""
                 try:
@@ -94,21 +101,23 @@ def llm_call(prompt, model=None, max_tokens=2000):
                     print(f"  429 bei {chain_model} (Versuch {attempt}), warte {wait}s ...")
                     time.sleep(wait)
                     continue
-                # andere 4xx: deterministisch, nicht wiederholen
                 raise RuntimeError(
                     f"OpenRouter HTTP {exc.code} fuer Modell {chain_model!r}: {body}"
                 ) from exc
+            except EmptyResponse as exc:
+                last_error = exc
+                print(f"  leere Antwort bei {chain_model} (Versuch {attempt}), warte {wait}s ...")
+                time.sleep(wait)
+                continue
             except Exception as exc:
-                last_error = RuntimeError(
-                    f"Netzwerkfehler bei {chain_model!r}: {exc}"
-                )
+                last_error = RuntimeError(f"Netzwerkfehler bei {chain_model!r}: {exc}")
                 time.sleep(10)
-        print(f"  {chain_model} persistent 429 — Fallback auf naechstes Modell")
-    raise RuntimeError(f"LLM-Aufruf endgueltig gescheitert (alle Modelle in Kette probiert): {last_error}")
+        print(f"  {chain_model} persistent fehlgeschlagen — Fallback auf naechstes Modell")
+    raise RuntimeError(f"LLM-Aufruf endgueltig gescheitert (alle Modelle probiert): {last_error}")
 
 
 def llm_json(prompt, model=None, max_tokens=2500):
-    """Ruft LLM auf und erzaengt valides JSON; invalid = Retry, dann Crash."""
+    """Ruft LLM auf und erzwingt valides JSON; invalid = Retry, dann Crash."""
     current = prompt
     for attempt in range(3):
         raw = llm_call(current, model=model, max_tokens=max_tokens)
