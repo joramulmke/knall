@@ -39,6 +39,8 @@ v8 (zweiter Anbieter Groq):
   und eigene Zähler ("groq_*"); das OpenRouter-Budget bleibt unberührt.
 - Groq-Tageslimit, 401 oder zu große Anfrage (413) → Groq überspringen,
   weiter mit OpenRouter. Kein Abbruch der Stufe.
+- KI0/KI1: Groq steht direkt hinter Gemma (vor Nemotron/ERNIE/Ling, die bei
+  langen Prompts oft leer antworten). Modelle: KI_GROQ_MODELS (kommagetrennt).
 """
 import os
 import json
@@ -56,6 +58,9 @@ DEFAULT_LARGE = "google/gemma-4-31b-it:free"
 # übernimmt das Schreib-Modell als Backup (siehe model_chain).
 DEFAULT_CHECK = "nvidia/nemotron-3.5-lightning:free"
 DEFAULT_CHECK_GROQ = "groq:openai/gpt-oss-120b"
+# Groq-Ersatz für KI0/KI1 und zweite Groq-Prüferin. Nicht (mehr) angebotene
+# Modelle fallen über die Groq-Modellliste automatisch heraus.
+DEFAULT_GROQ_MODELS = ["groq:openai/gpt-oss-120b", "groq:llama-3.3-70b-versatile"]
 GROQ = "groq:"
 GROQ_TAGESLIMIT = int(os.environ.get("KNALL_GROQ_TAGESLIMIT") or 900)
 GROQ_MAX_TOKENS = 2500           # Groq-Gratis: kleines Token-pro-Minute-Limit
@@ -190,6 +195,14 @@ def available_free_models():
 
 
 _GROQ_AVAILABLE = None
+
+
+def groq_modelle():
+    if not os.environ.get("GROQ_API_KEY"):
+        return []
+    raw = os.environ.get("KI_GROQ_MODELS", "")
+    eigene = [m.strip() for m in raw.split(",") if m.strip()]
+    return [m if ist_groq(m) else GROQ + m for m in eigene] or list(DEFAULT_GROQ_MODELS)
 
 
 def available_groq_models():
@@ -331,10 +344,13 @@ def llm_call(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.3)
     """Ruft LLM auf. 429/leere Antwort: kurzes Backoff, dann nächstes :free-Modell.
     Tageslimit → QuotaExhausted sofort. 401/402/403 → sofort Abbruch."""
     primary = resolve_model(model)
-    backup = None
+    groq = groq_modelle()
     if model == "CHECK":
-        # Groq-Prüferin → Nemotron → Schreib-Modell; Nemotron-Prüferin → Schreib-Modell
-        backup = [DEFAULT_CHECK, resolve_model("LARGE")] if ist_groq(primary) else resolve_model("LARGE")
+        # Groq-Prüferin(nen) → Nemotron → Schreib-Modell; ohne Groq: Nemotron → Schreib-Modell
+        backup = groq + [DEFAULT_CHECK, resolve_model("LARGE")]
+    else:
+        # KI0/KI1: Gemma → Groq → OpenRouter-Fallbacks
+        backup = groq
     chain = model_chain(primary, backup)
     last_error = None
     waited = 0

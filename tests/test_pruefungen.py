@@ -180,7 +180,7 @@ def test_groq_tageslimit_faellt_auf_openrouter_zurueck(monkeypatch, tmp_path):
         return "ok"
     monkeypatch.setattr(ki, "_post_once", post)
     assert ki.llm_call("p", model="CHECK") == "ok"      # kein QuotaExhausted
-    assert aufrufe == ["groq:openai/gpt-oss-120b", ki.DEFAULT_CHECK]
+    assert aufrufe == ["groq:openai/gpt-oss-120b", "groq:llama-3.3-70b-versatile", ki.DEFAULT_CHECK]
     assert schlaf == []
     assert ki.gesperrt("groq:openai/gpt-oss-120b")
 
@@ -191,3 +191,20 @@ def test_ohne_groq_key_bleibt_nemotron_pruefer(monkeypatch, tmp_path):
     monkeypatch.delenv("KI_MODEL_CHECK", raising=False)
     assert ki.resolve_model("CHECK") == ki.DEFAULT_CHECK
     assert not any(ki.ist_groq(m) for m in ki.model_chain("groq:x", None))
+
+
+def test_ki1_kette_gemma_dann_groq(monkeypatch, tmp_path):
+    ki, _, err429 = _ki_setup(monkeypatch, tmp_path)
+    monkeypatch.setenv("GROQ_API_KEY", "g")
+    monkeypatch.delenv("KI_MODEL_LARGE", raising=False)
+    monkeypatch.setattr(ki, "available_groq_models", lambda: None)
+    aufrufe = []
+
+    def post(model, *a):
+        aufrufe.append(model)
+        if model == ki.DEFAULT_LARGE:
+            raise err429(model)
+        return "text"
+    monkeypatch.setattr(ki, "_post_once", post)
+    assert ki.llm_call("p", model="LARGE") == "text"
+    assert aufrufe == [ki.DEFAULT_LARGE, ki.DEFAULT_LARGE, "groq:openai/gpt-oss-120b"]
