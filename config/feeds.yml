@@ -212,6 +212,17 @@ definitions:
   # ---------- Bundesgerichte (rechtsprechung-im-internet.de) ----------
   # 2026-11-25 ergänzt. Alter nach Feed-Datum (datum: feed), weil die Seite das
   # oft Wochen zurückliegende Entscheidungsdatum trägt. Themenauswahl über den Score.
+  bgh_pressemitteilungen:
+    type: nativ
+    name: "Bundesgerichtshof"
+    url: https://www.bundesgerichtshof.de/DE/Service/RSSFeed/Function/RSS_PM.xml?nn=373238
+    ressort: woche
+  bgh_entscheidungen:
+    type: nativ
+    name: "Bundesgerichtshof"
+    url: https://www.bundesgerichtshof.de/DE/Service/RSSFeed/Function/RSS_EN.xml?nn=373238
+    datum: feed
+    ressort: woche
   rii_bverfg:
     type: nativ
     name: "Bundesverfassungsgericht"
