@@ -17,7 +17,7 @@ concurrency:
 jobs:
   pipeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60   # Free-Tier-Backoffs brauchen Puffer
     steps:
       - uses: actions/checkout@v4
 
