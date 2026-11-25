@@ -5,33 +5,133 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Knall — Das linke Boulevard</title>
 <style>
-  :root { color-scheme: light dark; }
-  body { font-family: system-ui, sans-serif; margin: 0; background: #fdf8f2; color: #1a1a1a; }
-  header { padding: 2rem; border-bottom: 4px solid #6d4aff; }
-  h1 { margin: 0; font-size: clamp(2.5rem, 8vw, 5rem); text-transform: uppercase; letter-spacing: -0.02em; }
-  h1 span { color: #6d4aff; }
-  main { max-width: 46rem; margin: 0 auto; padding: 1.5rem; }
-  article { border-top: 2px solid #1a1a1a; padding: 1.5rem 0; }
-  article h2 { font-size: 1.8rem; margin: 0 0 0.5rem; }
-  article .meta { font-size: 0.85rem; color: #555; margin-bottom: 1rem; }
-  article .body { white-space: pre-wrap; line-height: 1.55; font-size: 1.1rem; }
-  article .quellen-titel { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #555; margin-top: 1.2rem; }
-  article .quellen { font-size: 0.85rem; color: #555; margin: 0.3rem 0 0; padding-left: 1.2rem; }
-  footer { padding: 1.5rem; font-size: 0.85rem; color: #555; border-top: 2px solid #1a1a1a; }
-  footer a, article a { color: #6d4aff; }
+  /* Schriften lokal (SIL OFL, siehe fonts/) — keine Anfragen an Dritte */
+  @font-face { font-family: "Anton"; font-weight: 400; font-display: swap; src: url("fonts/anton-latin.woff2") format("woff2"); }
+  @font-face { font-family: "Source Sans 3"; font-weight: 200 900; font-display: swap; src: url("fonts/sourcesans3-latin.woff2") format("woff2"); }
+  :root {
+    color-scheme: light;
+    --lila: #6d4aff; --lila-dunkel: #3e1fc2; --schwarz: #111; --papier: #fff;
+    --grau: #f1eff7; --text: #1a1a1a; --leise: #5b5868; --gelb: #ffe14d;
+    --schlagzeile: "Anton", "Impact", "Haettenschweiler", "Arial Narrow Bold", sans-serif;
+    --fliess: "Source Sans 3", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--grau); color: var(--text); font-family: var(--fliess); }
+  a { color: var(--lila); }
+
+  /* Kopf */
+  .kopf { background: var(--lila); color: #fff; }
+  .kopf-innen { max-width: 72rem; margin: 0 auto; padding: 0.6rem 16px 0.8rem; display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  .logo { margin: 0; font-family: var(--schlagzeile); font-weight: 400; font-size: clamp(3.2rem, 12vw, 6.5rem); line-height: 0.9; letter-spacing: 0.01em; text-transform: uppercase; }
+  .logo span { color: var(--gelb); }
+  .unterzeile { text-align: right; font-weight: 800; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.04em; line-height: 1.4; }
+  .unterzeile .datum { font-weight: 400; opacity: 0.85; text-transform: none; letter-spacing: 0; }
+
+  /* Ressort-Leiste */
+  .ressorts { background: var(--schwarz); }
+  .ressorts-innen { max-width: 72rem; margin: 0 auto; padding: 0 16px; display: flex; gap: 0.2rem; overflow-x: auto; scrollbar-width: none; }
+  .ressorts button { font: 800 0.9rem var(--fliess); text-transform: uppercase; letter-spacing: 0.04em; color: #fff; background: none; border: 0; padding: 0.7rem 0.8rem; cursor: pointer; white-space: nowrap; border-bottom: 4px solid transparent; }
+  .ressorts button:hover, .ressorts button.aktiv { border-bottom-color: var(--lila); color: var(--gelb); }
+
+  /* Laufband */
+  .ticker { background: var(--gelb); color: var(--schwarz); overflow: hidden; display: flex; align-items: stretch; border-bottom: 3px solid var(--schwarz); }
+  .ticker-label { flex: none; background: var(--schwarz); color: var(--gelb); font: 400 1rem var(--schlagzeile); text-transform: uppercase; padding: 0.45rem 0.8rem; letter-spacing: 0.05em; }
+  .ticker-band { overflow: hidden; flex: 1; display: flex; align-items: center; }
+  .lauf { display: inline-flex; white-space: nowrap; animation: lauf 60s linear infinite; font-weight: 800; }
+  .lauf span::after { content: "+++"; margin: 0 1rem; color: var(--lila); }
+  .ticker:hover .lauf { animation-play-state: paused; }
+  @keyframes lauf { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  @media (prefers-reduced-motion: reduce) { .lauf { animation: none; } }
+
+  main { max-width: 72rem; margin: 0 auto; padding: 1.2rem 16px 2rem; }
+
+  /* Artikel allgemein */
+  article { background: var(--papier); border-top: 6px solid var(--schwarz); display: flex; flex-direction: column; min-width: 0; }
+  article[hidden] { display: none; }
+  .typo { container-type: inline-size; background: var(--schwarz); color: #fff; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 0.6rem; aspect-ratio: 16 / 7; }
+  /* Schriftgröße passt sich der Wortlänge an (--n), damit nichts mitten im Wort umbricht */
+  .typo span { font-family: var(--schlagzeile); text-transform: uppercase; line-height: 0.95; font-size: min(3.4rem, calc(170cqi / var(--n, 8))); text-align: center; white-space: nowrap; }
+  .typo.r-kohle, .typo.r-wohnen { background: var(--lila); }
+  .typo.r-klima, .typo.r-lokal { background: var(--lila-dunkel); }
+  .typo.r-alle-gleich, .typo.r-pflege { background: var(--gelb); color: var(--schwarz); }
+  .inhalt { padding: 0.9rem 1rem 1rem; display: flex; flex-direction: column; flex: 1; }
+  .dach { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.35rem; }
+  .ressort { color: var(--lila); font-weight: 800; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.06em; }
+  .stoerer { font: 400 0.85rem var(--schlagzeile); text-transform: uppercase; letter-spacing: 0.05em; padding: 0.1rem 0.45rem; transform: rotate(-3deg); display: inline-block; }
+  .stoerer.knall { background: var(--lila); color: #fff; }
+  .stoerer.neu { background: var(--gelb); color: var(--schwarz); }
+  article h2 { font-family: var(--schlagzeile); font-weight: 400; margin: 0 0 0.5rem; line-height: 1.08; font-size: 1.55rem; letter-spacing: 0.005em; overflow-wrap: break-word; hyphens: auto; }
+  .teaser, .lead { font-weight: 600; line-height: 1.45; margin: 0 0 0.6rem; font-size: 1.05rem; }
+  details { margin-top: auto; }
+  summary { cursor: pointer; list-style: none; display: inline-block; background: var(--schwarz); color: #fff; font-weight: 800; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.05em; padding: 0.4rem 0.75rem; margin: 0.2rem 0 0.6rem; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: " ▸"; }
+  details[open] summary::after { content: " ▾"; }
+  details[open] summary { background: var(--lila); }
+  .body p { line-height: 1.6; font-size: 1.08rem; margin: 0 0 0.9rem; }
+  .quellen-titel { font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--leise); margin-top: 1rem; }
+  .quellen { font-size: 0.88rem; color: var(--leise); margin: 0.3rem 0 0; padding-left: 1.1rem; }
+  .quellen li { margin-bottom: 0.25rem; overflow-wrap: anywhere; }
+  .quellen .medium::before { content: "— "; }
+  .meta { font-size: 0.78rem; color: var(--leise); margin-top: 0.4rem; }
+
+  /* Aufmacher */
+  .aufmacher { border-top: 0; margin-bottom: 1.4rem; display: grid; grid-template-columns: 1fr; }
+  .aufmacher .typo { aspect-ratio: auto; min-height: 9rem; background: var(--lila); }
+  .aufmacher .typo span { font-size: min(7rem, calc(170cqi / var(--n, 8))); }
+  .aufmacher h2 { text-transform: uppercase; font-size: clamp(2.1rem, 6.5vw, 4rem); line-height: 1; }
+  .aufmacher .teaser { font-size: 1.25rem; }
+  .aufmacher .inhalt { padding: 1.1rem 1.2rem 1.2rem; }
+  @media (min-width: 52rem) {
+    .aufmacher { grid-template-columns: 2fr 3fr; }
+    .aufmacher .typo { min-height: 100%; }
+    .aufmacher details[open] { grid-column: 1 / -1; }
+  }
+
+  /* Raster */
+  .raster { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 1.2rem; }
+  .raster article:has(details[open]) { grid-column: 1 / -1; }
+  .raster article:has(details[open]) .teaser { display: none; }
+  .raster article:not(:has(details[open])) .lead { display: none; }
+  .raster article:has(details[open]) .typo { aspect-ratio: auto; height: 8rem; }
+  .leer { background: var(--papier); padding: 2rem; font-weight: 800; font-size: 1.3rem; border-top: 6px solid var(--schwarz); }
+
+  footer { background: var(--schwarz); color: #ccc; font-size: 0.85rem; line-height: 1.5; }
+  .fuss-innen { max-width: 72rem; margin: 0 auto; padding: 1.5rem 16px; }
+  footer a { color: var(--gelb); }
+  .fuss-logo { font: 400 1.8rem var(--schlagzeile); color: #fff; margin-bottom: 0.4rem; }
 </style>
 </head>
 <body>
-<header><h1>KN<span>ALL</span></h1>
-<p>Das linke Boulevard — maschinell geschrieben, mehrstufig geprüft.</p></header>
+<header>
+<div class="kopf"><div class="kopf-innen">
+<h1 class="logo">Kn<span>all</span></h1>
+<div class="unterzeile">Das linke Boulevard<br><span class="datum"><!-- DATUM --><!-- /DATUM --></span></div>
+</div></div>
+<nav class="ressorts" aria-label="Ressorts"><div class="ressorts-innen"><!-- RESSORTS --><!-- /RESSORTS --></div></nav>
+<div class="ticker" aria-label="Neueste Schlagzeilen"><div class="ticker-label">+++ Eilt</div><div class="ticker-band"><!-- TICKER --><!-- /TICKER --></div></div>
+</header>
 <main>
 <!-- ARTIKEL -->
-<p>Noch keine Artikel. Die Pipeline läuft täglich um 06:00.</p>
+<p class="leer">Noch keine Artikel. Die Pipeline läuft täglich um 06:00 — morgen knallt’s.</p>
 <!-- /ARTIKEL -->
 </main>
-<footer>
+<footer><div class="fuss-innen">
+<div class="fuss-logo">KNALL</div>
 Alle Texte entstehen automatisiert aus verlinkten Quellen und werden mehrstufig geprüft (KI-Prüfung + maschinelle Zahlen-, Namens- und Plagiatschecks). Rote Texte werden nie veröffentlicht — Ablehnungsgründe (ohne Text) liegen offen im <a href="https://github.com/joramulmke/knall">Repository</a>.
 <br><a href="https://joram.eu/imp">Impressum</a>
-</footer>
+</div></footer>
+<script>
+  // Ressort-Filter (ohne JS werden einfach alle Artikel gezeigt)
+  document.querySelectorAll(".ressorts button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var f = b.getAttribute("data-filter");
+      document.querySelectorAll(".ressorts button").forEach(function (x) { x.classList.toggle("aktiv", x === b); });
+      document.querySelectorAll("main article").forEach(function (a) {
+        a.hidden = !!f && a.getAttribute("data-ressort") !== f;
+      });
+    });
+  });
+</script>
 </body>
 </html>
