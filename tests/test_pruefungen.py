@@ -324,3 +324,39 @@ def test_groq_minutenlimit_sperrt_nur_kurz(monkeypatch, tmp_path):
     ki.llm_call("p", model="CHECK")
     bis = ki.zaehler()["gesperrt_bis"]["groq:openai/gpt-oss-120b"]
     assert bis - _t.time() <= 95
+
+
+# --- KI3-Nachbesserung: tolerantes Finden der Stelle ------------------------
+
+def test_ki3_ersatz_toleriert_typografie():
+    from router import apply_replacements
+    text = "Die Klinik in Beeskow steht vor dem „Aus“ – sagt der Landrat. Danach mehr."
+    # anderes Anführungszeichen, anderer Strich, umschließende Anführungszeichen
+    risiken = [{"urteil": "grenzwertig", "stelle": '"Die Klinik in Beeskow steht vor dem "Aus" - sagt der Landrat."',
+                "ersatzformulierung": "Der Landrat sieht die Klinik in Beeskow in Gefahr."}]
+    neu, fehl = apply_replacements(text, risiken)
+    assert fehl == []
+    assert neu == "Der Landrat sieht die Klinik in Beeskow in Gefahr. Danach mehr."
+
+
+def test_ki3_ersatz_verlangt_gleiche_woerter():
+    from router import apply_replacements
+    text = "Die Klinik in Beeskow steht vor dem Aus."
+    risiken = [{"urteil": "grenzwertig", "stelle": "Das Krankenhaus in Beeskow steht vor dem Aus.",
+                "ersatzformulierung": "x"}]
+    neu, fehl = apply_replacements(text, risiken)
+    assert fehl and neu == text
+
+
+def test_groq_json_modus_nur_in_llm_json(monkeypatch, tmp_path):
+    import json as _json
+    ki, _, _ = _ki_setup(monkeypatch, tmp_path)
+    monkeypatch.setenv("GROQ_API_KEY", "g")
+    monkeypatch.delenv("KI_MODEL_CHECK", raising=False)
+    monkeypatch.setattr(ki, "available_groq_models", lambda: None)
+    bodies = []
+    monkeypatch.setattr(ki, "_senden", lambda url, key, payload, model: bodies.append(_json.loads(payload)) or '{"a": 1}')
+    assert ki.llm_json("p", model="CHECK") == {"a": 1}
+    ki.llm_call("p", model="CHECK")
+    assert bodies[0].get("response_format") == {"type": "json_object"}
+    assert "response_format" not in bodies[1]

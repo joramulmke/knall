@@ -418,6 +418,43 @@ def evaluate_stage():
         write_json(dpath, draft)
 
 
+_ANF = "\"'„“”‚‘’«»"
+_STRICH = "-–—"
+
+
+def _ersetze_tolerant(text, stelle, ersatz):
+    """Stelle im Text ersetzen. KI3 zitiert oft leicht abweichend (andere
+    Anführungszeichen/Striche, Leerzeichen, umschließende Zeichen, "…").
+    Toleriert nur solche Typografie — Wörter müssen exakt stimmen. Das
+    Ergebnis wird danach ohnehin komplett neu geprüft (KI2 + Sonderprüfung + KI3).
+    Rückgabe: neuer Text oder None."""
+    if stelle in text:
+        return text.replace(stelle, ersatz)
+    kern = stelle.strip().strip(_ANF).strip().rstrip("…").rstrip(".").strip()
+    if len(kern) < 8:
+        return None
+    # Ersatz passend zum gekürzten Kern: ohne umschließende Zeichen und ohne
+    # Schlusspunkt (der Punkt des Originalsatzes bleibt im Text stehen)
+    ersatz_kern = ersatz.strip().strip(_ANF).strip().rstrip("…").rstrip(".").strip()
+    if kern in text:
+        return text.replace(kern, ersatz_kern)
+    teile = []
+    for ch in kern:
+        if ch.isspace():
+            if not teile or teile[-1] != r"\s+":
+                teile.append(r"\s+")
+        elif ch in _ANF:
+            teile.append("[" + re.escape(_ANF) + "]")
+        elif ch in _STRICH:
+            teile.append("[" + re.escape(_STRICH) + "]")
+        else:
+            teile.append(re.escape(ch))
+    rx = re.compile("".join(teile))
+    if not rx.search(text):
+        return None
+    return rx.sub(lambda _m: ersatz_kern, text)
+
+
 def apply_replacements(text, risiken):
     """KI3-Ersatzformulierungen anwenden. Rückgabe (neuer_text, fehlgeschlagen).
     Jede beanstandete Stelle (grenzwertig/kritisch mit Ersatz) MUSS wörtlich
@@ -436,10 +473,11 @@ def apply_replacements(text, risiken):
             if urteil == "kritisch":
                 fehlgeschlagen.append(stelle)
             continue
-        if stelle not in text:
+        neu = _ersetze_tolerant(text, stelle, ersatz)
+        if neu is None:
             fehlgeschlagen.append(stelle)
             continue
-        text = text.replace(stelle, ersatz)
+        text = neu
         angewendet += 1
     if angewendet == 0 and not fehlgeschlagen:
         fehlgeschlagen.append("nachbesserung ohne anwendbare Ersatzformulierung")

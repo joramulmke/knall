@@ -72,7 +72,8 @@ GROQ_TAGESLIMIT = int(os.environ.get("KNALL_GROQ_TAGESLIMIT") or 900)
 # Eigene Kennung: Groq (Cloudflare) sperrt die Python-Standardkennung
 # "Python-urllib" mit HTTP 403 / "error code: 1010".
 USER_AGENT = "knall-pipeline/1.0"
-GROQ_MAX_TOKENS = 2500           # Groq-Gratis: kleines Token-pro-Minute-Limit
+GROQ_MAX_TOKENS = 3500           # Groq-Gratis: kleines Token-pro-Minute-Limit; 2500 schnitt KI2-JSON ab
+_JSON_MODUS = False              # von llm_json gesetzt → Groq liefert garantiert ein JSON-Objekt
 
 # Fallback-Kette bei persistentem 429, leeren Antworten oder fehlendem Modell.
 DEFAULT_FALLBACK_CHAIN = [
@@ -320,6 +321,8 @@ def _post_groq(model, prompt, max_tokens, temperature):
         "max_tokens": min(max_tokens, GROQ_MAX_TOKENS),
         "temperature": temperature,
     }
+    if _JSON_MODUS:
+        body["response_format"] = {"type": "json_object"}
     if "gpt-oss" in name:        # Reasoning-Modell: wenig denken
         body["reasoning_effort"] = "low"
     elif "qwen" in name:         # Denktext nicht in die Antwort (sonst <think>…)
@@ -472,9 +475,14 @@ def llm_call(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.3)
 
 def llm_json(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.0):
     """Ruft LLM auf und erzwingt ein JSON-Objekt; invalid = Retry, dann Crash."""
+    global _JSON_MODUS
     current = prompt
     for _ in range(3):
-        raw = llm_call(current, model=model, max_tokens=max_tokens, temperature=temperature)
+        _JSON_MODUS = True
+        try:
+            raw = llm_call(current, model=model, max_tokens=max_tokens, temperature=temperature)
+        finally:
+            _JSON_MODUS = False
         start = raw.find("{")
         end = raw.rfind("}")
         if start != -1 and end != -1:
