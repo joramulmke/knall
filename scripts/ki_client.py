@@ -309,9 +309,16 @@ def _senden(url, key, payload, model):
         data = json.loads(resp.read())
     if data.get("error"):
         raise EmptyResponse(f"{model} lieferte Fehlerobjekt: {str(data['error'])[:300]}")
-    content = (data.get("choices") or [{}])[0].get("message", {}).get("content")
+    choice = (data.get("choices") or [{}])[0]
+    content = choice.get("message", {}).get("content")
     if not content or not str(content).strip():
-        raise EmptyResponse(f"{model} lieferte leeren content (nur Reasoning?)")
+        # Diagnose: Abbruchgrund, Token-Verbrauch und ob nur Reasoning kam
+        usage = data.get("usage") or {}
+        reasoning = choice.get("message", {}).get("reasoning") or ""
+        raise EmptyResponse(
+            f"{model} lieferte leeren content (finish_reason={choice.get('finish_reason')}, "
+            f"prompt={usage.get('prompt_tokens')}, completion={usage.get('completion_tokens')}, "
+            f"reasoning_zeichen={len(str(reasoning))})")
     return str(content)
 
 
@@ -381,7 +388,7 @@ def llm_call(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.3)
                 break
             except EmptyResponse as exc:
                 _zaehle("leer", groq=ist_groq(chain_model))
-                print(f"  leere Antwort bei {chain_model} (Versuch {attempt})")
+                print(f"  leere Antwort bei {chain_model} (Versuch {attempt}): {exc}")
                 last_error = exc
                 plan = BACKOFF_LEER
             except QuotaExhausted:
