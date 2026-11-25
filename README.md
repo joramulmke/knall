@@ -19,6 +19,8 @@ Automatisierte Boulevard-Pipeline: links, arbeitnehmerfreundlich, ökologisch, a
 ## Sicherheitsmodell (keine menschliche Freigabe → fail-closed)
 
 - Nur `:free`-Modelle bei OpenRouter; andere Modell-IDs werden verweigert. Die Fallback-Kette wird zur Laufzeit gegen die OpenRouter-Modellliste abgeglichen. Tageslimit (429 „per-day“) bricht sofort ab.
+- Nur aktuelle Meldungen: Älter als `KNALL_MAX_ALTER_TAGE` (Default 3) → kein Volltext-Abruf, keine Story. Maßgeblich ist das Datum im Originalartikel, sonst das Feed-Datum; ohne Datum wird nicht aussortiert.
+- Groq-Minutenlimit (Tokens pro Minute): Die von Groq genannte Wartezeit wird bis zu 3-mal abgewartet, dann folgt das nächste Modell.
 - Früher Modellwechsel: Bei 429 gibt es nur einen kurzen Wiederholversuch (15 s), bei leerer Antwort einen sofortigen; danach kommt das nächste Modell der Kette. Ein Modell mit 429 rückt für `KNALL_MODELL_SPERRE_S` (Default 600 s) auch in späteren Stufen ans Ende der Kette.
 - Quellen werden bereinigt (HTML, Steuerzeichen) und in `<quelle>`-Blöcke gesetzt; Quellen mit Anweisungs-Text (Prompt-Injection) werden verworfen (`scripts/safety.py`).
 - KI2: Grün nur, wenn das Protokoll vollständig ist (jeder Satz geprüft, nur bekannte Befunde) und die nachgerechnete Ampel ebenfalls grün ergibt. Alles Unklare = rot.

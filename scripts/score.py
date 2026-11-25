@@ -15,7 +15,7 @@ import sys
 import yaml
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from common import run_day  # noqa: E402
+from common import run_day, zu_alt, alter_tage, MAX_ALTER_TAGE  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CONFIG = yaml.safe_load((ROOT / "config" / "feeds.yml").read_text(encoding="utf-8"))
@@ -69,7 +69,9 @@ def main():
         s, ressort = score_item(item)
         item["score"] = s
         item["ressort_detected"] = ressort
-        item["advance"] = s >= MIN_SCORE and item.get("vollstaendig") is True
+        item["alter_tage"] = alter_tage(item, today)
+        item["advance"] = (s >= MIN_SCORE and item.get("vollstaendig") is True
+                           and not zu_alt(item, today))
         path.write_text(json.dumps(item, ensure_ascii=False, indent=2), encoding="utf-8")
         if item["advance"]:
             candidates += 1

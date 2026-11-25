@@ -34,6 +34,27 @@ def run_day():
     return datetime.datetime.now(datetime.timezone.utc).date().isoformat()
 
 
+MAX_ALTER_TAGE = int(os.environ.get("KNALL_MAX_ALTER_TAGE") or 3)
+
+
+def alter_tage(item, heute=None):
+    """Alter einer Meldung in Tagen: Datum aus dem Originalartikel (trafilatura),
+    sonst Feed-Datum. None, wenn keins bekannt ist."""
+    ref = datetime.date.fromisoformat(heute or run_day())
+    for key in ("datum_original", "published_iso"):
+        roh = str(item.get(key) or "")[:10]
+        try:
+            return (ref - datetime.date.fromisoformat(roh)).days
+        except ValueError:
+            continue
+    return None
+
+
+def zu_alt(item, heute=None):
+    a = alter_tage(item, heute)
+    return a is not None and a > MAX_ALTER_TAGE
+
+
 def prev_day(day=None):
     d = datetime.date.fromisoformat(day or run_day())
     return (d - datetime.timedelta(days=1)).isoformat()

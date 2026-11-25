@@ -180,7 +180,8 @@ def test_groq_tageslimit_faellt_auf_openrouter_zurueck(monkeypatch, tmp_path):
         return "ok"
     monkeypatch.setattr(ki, "_post_once", post)
     assert ki.llm_call("p", model="CHECK") == "ok"      # kein QuotaExhausted
-    assert aufrufe == ["groq:openai/gpt-oss-120b", "groq:llama-3.3-70b-versatile", ki.DEFAULT_CHECK]
+    assert aufrufe == ["groq:openai/gpt-oss-120b", "groq:openai/gpt-oss-20b",
+                       "groq:llama-3.3-70b-versatile", ki.DEFAULT_CHECK]
     assert schlaf == []
     assert ki.gesperrt("groq:openai/gpt-oss-120b")
 
@@ -267,3 +268,35 @@ def test_eigene_user_agent_kennung(monkeypatch, tmp_path):
     monkeypatch.setattr(ki.urllib.request, "urlopen", urlopen)
     assert ki._senden("https://api.groq.com/x", "k", b"{}", "groq:m") == "ok"
     assert gesehen["ua"] and "python" not in gesehen["ua"].lower()
+
+
+def test_groq_minutenlimit_wartet_genannte_zeit(monkeypatch, tmp_path):
+    import io
+    import urllib.error
+    ki, schlaf, _ = _ki_setup(monkeypatch, tmp_path)
+    monkeypatch.setenv("GROQ_API_KEY", "g")
+    monkeypatch.delenv("KI_MODEL_CHECK", raising=False)
+    monkeypatch.setattr(ki, "available_groq_models", lambda: None)
+    n = {"x": 0}
+
+    def post(model, *a):
+        n["x"] += 1
+        if n["x"] <= 2:
+            raise urllib.error.HTTPError("u", 429, "tpm", {}, io.BytesIO(
+                b"Rate limit reached on tokens per minute (TPM): Limit 8000. Please try again in 7.4175s."))
+        return "ok"
+    monkeypatch.setattr(ki, "_post_once", post)
+    assert ki.llm_call("p", model="CHECK") == "ok"
+    assert schlaf == [9, 9]                     # 7.4 s → 7 + 2 Puffer, gleiches Modell
+
+
+# --- Aktualität -------------------------------------------------------------
+
+def test_alte_meldungen_werden_aussortiert():
+    from common import alter_tage, zu_alt
+    heute = "2026-11-25"
+    assert alter_tage({"published_iso": "2026-11-24T08:00:00+00:00"}, heute) == 1
+    assert zu_alt({"datum_original": "2026-03-10"}, heute)
+    # Datum aus dem Artikel schlägt Feed-Datum
+    assert zu_alt({"datum_original": "2026-03-10", "published_iso": "2026-11-25T08:00:00+00:00"}, heute)
+    assert not zu_alt({}, heute)                # unbekannt → nicht aussortieren

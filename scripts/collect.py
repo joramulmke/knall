@@ -81,6 +81,8 @@ def fetch(feed_key, feed_def):
             "title": title,
             "summary": summary,
             "published": getattr(entry, "published", ""),
+            "published_iso": _iso(getattr(entry, "published_parsed", None)
+                                  or getattr(entry, "updated_parsed", None)),
             "collected_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "vollstaendig": False,            # erst fulltext.py setzt True (Originalartikel gelesen)
             "score": None,
@@ -88,6 +90,14 @@ def fetch(feed_key, feed_def):
         path.write_text(json.dumps(item, ensure_ascii=False, indent=2), encoding="utf-8")
         saved += 1
     return saved
+
+
+def _iso(t):
+    """feedparser-struct_time → ISO-Datum (UTC) oder None."""
+    try:
+        return datetime.datetime(*t[:6], tzinfo=datetime.timezone.utc).isoformat()
+    except Exception:
+        return None
 
 
 def main():
