@@ -143,3 +143,51 @@ def test_leere_antwort_sofort_wiederholen(monkeypatch, tmp_path):
     assert ki.llm_call("p", model="a/eins:free") == "ok"
     assert aufrufe == ["a/eins:free", "a/eins:free", "b/zwei:free"]
     assert schlaf == []
+
+
+# --- Groq als zweiter Anbieter für die Prüferin -----------------------------
+
+def test_groq_pruefer_kette_und_eigene_zaehler(monkeypatch, tmp_path):
+    ki, schlaf, _ = _ki_setup(monkeypatch, tmp_path)
+    monkeypatch.setenv("GROQ_API_KEY", "g")
+    monkeypatch.delenv("KI_MODEL_CHECK", raising=False)
+    monkeypatch.setattr(ki, "available_groq_models", lambda: None)
+    kette = ki.model_chain(ki.resolve_model("CHECK"), [ki.DEFAULT_CHECK, ki.resolve_model("LARGE")])
+    assert kette[:3] == ["groq:openai/gpt-oss-120b", ki.DEFAULT_CHECK, ki.DEFAULT_LARGE]
+
+    gesendet = []
+    monkeypatch.setattr(ki, "_senden", lambda url, key, payload, model: gesendet.append((url, model)) or "ok")
+    assert ki.llm_call("p", model="CHECK") == "ok"
+    assert "api.groq.com" in gesendet[0][0]
+    z = ki.zaehler()
+    assert z["groq_anfragen"] == 1 and z["groq_ok"] == 1 and z["anfragen"] == 0
+
+
+def test_groq_tageslimit_faellt_auf_openrouter_zurueck(monkeypatch, tmp_path):
+    import io
+    import urllib.error
+    ki, schlaf, _ = _ki_setup(monkeypatch, tmp_path)
+    monkeypatch.setenv("GROQ_API_KEY", "g")
+    monkeypatch.delenv("KI_MODEL_CHECK", raising=False)
+    monkeypatch.setattr(ki, "available_groq_models", lambda: None)
+    aufrufe = []
+
+    def post(model, *a):
+        aufrufe.append(model)
+        if ki.ist_groq(model):
+            raise urllib.error.HTTPError("u", 429, "rate", {}, io.BytesIO(
+                b"Rate limit reached on requests per day (RPD): Limit 1000"))
+        return "ok"
+    monkeypatch.setattr(ki, "_post_once", post)
+    assert ki.llm_call("p", model="CHECK") == "ok"      # kein QuotaExhausted
+    assert aufrufe == ["groq:openai/gpt-oss-120b", ki.DEFAULT_CHECK]
+    assert schlaf == []
+    assert ki.gesperrt("groq:openai/gpt-oss-120b")
+
+
+def test_ohne_groq_key_bleibt_nemotron_pruefer(monkeypatch, tmp_path):
+    ki, _, _ = _ki_setup(monkeypatch, tmp_path)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("KI_MODEL_CHECK", raising=False)
+    assert ki.resolve_model("CHECK") == ki.DEFAULT_CHECK
+    assert not any(ki.ist_groq(m) for m in ki.model_chain("groq:x", None))

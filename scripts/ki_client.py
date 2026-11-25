@@ -29,6 +29,16 @@ v7 (früherer Modellwechsel):
 - Ein Modell mit 429 wird für KNALL_MODELL_SPERRE_S (Default 600 s) im
   Tageszähler gesperrt und in allen folgenden Aufrufen — auch in späteren
   Pipeline-Stufen — ans Ende der Kette gestellt (nicht entfernt).
+
+v8 (zweiter Anbieter Groq):
+- Modell-IDs mit Präfix "groq:" (z. B. "groq:openai/gpt-oss-120b") laufen über
+  die Groq-API (Secret GROQ_API_KEY, kostenloser Tarif ohne Zahlungsmittel).
+- Ist GROQ_API_KEY gesetzt, prüft KI2/KI3 zuerst mit Groq; dahinter folgen
+  Nemotron, das Schreib-Modell und die OpenRouter-Fallbacks.
+- Groq hat ein eigenes Tageskontingent (KNALL_GROQ_TAGESLIMIT, Default 900)
+  und eigene Zähler ("groq_*"); das OpenRouter-Budget bleibt unberührt.
+- Groq-Tageslimit, 401 oder zu große Anfrage (413) → Groq überspringen,
+  weiter mit OpenRouter. Kein Abbruch der Stufe.
 """
 import os
 import json
@@ -45,6 +55,10 @@ DEFAULT_LARGE = "google/gemma-4-31b-it:free"
 # Prüferin (KI2/KI3): bewusst andere Modellfamilie als KI1. Fällt sie aus,
 # übernimmt das Schreib-Modell als Backup (siehe model_chain).
 DEFAULT_CHECK = "nvidia/nemotron-3.5-lightning:free"
+DEFAULT_CHECK_GROQ = "groq:openai/gpt-oss-120b"
+GROQ = "groq:"
+GROQ_TAGESLIMIT = int(os.environ.get("KNALL_GROQ_TAGESLIMIT") or 900)
+GROQ_MAX_TOKENS = 2500           # Groq-Gratis: kleines Token-pro-Minute-Limit
 
 # Fallback-Kette bei persistentem 429, leeren Antworten oder fehlendem Modell.
 DEFAULT_FALLBACK_CHAIN = [
@@ -77,7 +91,13 @@ def env_or(name, default):
     return val if val else default
 
 
+def ist_groq(model):
+    return str(model).startswith(GROQ)
+
+
 def require_free(model):
+    if ist_groq(model):          # Groq: kostenloser Tarif, Konto ohne Zahlungsmittel
+        return model
     if not str(model).endswith(":free"):
         raise ValueError(f"Nur :free-Modelle erlaubt, bekommen: {model!r}")
     return model
@@ -98,15 +118,20 @@ def zaehler():
         z = {}
     for k in ("anfragen", "ok", "r429", "fehler", "leer"):
         z.setdefault(k, 0)
+        z.setdefault("groq_" + k, 0)
     z.setdefault("modelle", {})
     z["limit"] = TAGESLIMIT
+    z["groq_limit"] = GROQ_TAGESLIMIT
     return z
 
 
-def _zaehle(art, model=None):
+def _zaehle(art, model=None, groq=False):
+    """Zählt für OpenRouter ("anfragen", …) oder Groq ("groq_anfragen", …)."""
     z = zaehler()
+    if groq:
+        art = "groq_" + art
     z[art] = z.get(art, 0) + 1
-    if art == "anfragen" and model:
+    if art.endswith("anfragen") and model:
         z["modelle"][model] = z["modelle"].get(model, 0) + 1
     f = _zaehler_pfad()
     f.parent.mkdir(parents=True, exist_ok=True)
@@ -131,9 +156,14 @@ def budget_rest():
     return max(0, TAGESLIMIT - zaehler()["anfragen"])
 
 
+def groq_rest():
+    return max(0, GROQ_TAGESLIMIT - zaehler()["groq_anfragen"])
+
+
 def resolve_model(model):
     if model == "CHECK":
-        return require_free(env_or("KI_MODEL_CHECK", DEFAULT_CHECK))
+        default = DEFAULT_CHECK_GROQ if os.environ.get("GROQ_API_KEY") else DEFAULT_CHECK
+        return require_free(env_or("KI_MODEL_CHECK", default))
     if model == "LARGE":
         return require_free(env_or("KI_MODEL_LARGE", DEFAULT_LARGE))
     if not model or not str(model).strip() or model == "SMALL":
@@ -159,12 +189,33 @@ def available_free_models():
     return _AVAILABLE or None
 
 
+_GROQ_AVAILABLE = None
+
+
+def available_groq_models():
+    """Set der Groq-Modelle (ohne Präfix) oder None, wenn nicht abrufbar."""
+    global _GROQ_AVAILABLE
+    if _GROQ_AVAILABLE is not None:
+        return _GROQ_AVAILABLE or None
+    try:
+        req = urllib.request.Request("https://api.groq.com/openai/v1/models",
+                                     headers={"Authorization": f"Bearer {os.environ['GROQ_API_KEY']}"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read())
+        _GROQ_AVAILABLE = {m["id"] for m in data.get("data", [])}
+    except Exception as exc:
+        print(f"  Groq-Modell-Liste nicht abrufbar ({exc}) — nutze Groq ungeprueft")
+        _GROQ_AVAILABLE = set()
+    return _GROQ_AVAILABLE or None
+
+
 def model_chain(primary, backup=None):
-    """[primary, backup (z. B. Schreib-Modell für die Prüferin), Fallbacks…]"""
+    """[primary, backup(s) (z. B. Schreib-Modell für die Prüferin), Fallbacks…]"""
     raw = os.environ.get("KI_FALLBACK_MODELS", "")
     fallbacks = [m.strip() for m in raw.split(",") if m.strip()] or DEFAULT_FALLBACK_CHAIN
     chain = []
-    for m in [primary] + ([backup] if backup else []) + fallbacks:
+    backups = backup if isinstance(backup, list) else ([backup] if backup else [])
+    for m in [primary] + backups + fallbacks:
         if m in chain:
             continue
         try:
@@ -173,12 +224,24 @@ def model_chain(primary, backup=None):
             print(f"  ueberspringe {m}: {exc}")
             continue
         chain.append(m)
+    if any(ist_groq(m) for m in chain):
+        if not os.environ.get("GROQ_API_KEY"):
+            chain = [m for m in chain if not ist_groq(m)]
+        elif groq_rest() <= 0:
+            print("  Groq-Tageskontingent aufgebraucht — nur OpenRouter")
+            chain = [m for m in chain if not ist_groq(m)]
+        else:
+            gavail = available_groq_models()
+            if gavail:
+                for m in [m for m in chain if ist_groq(m) and m[len(GROQ):] not in gavail]:
+                    print(f"  Groq-Modell {m} nicht (mehr) verfuegbar — uebersprungen")
+                chain = [m for m in chain if not ist_groq(m) or m[len(GROQ):] in gavail]
     avail = available_free_models()
     if avail:
-        missing = [m for m in chain if m not in avail]
+        missing = [m for m in chain if not ist_groq(m) and m not in avail]
         for m in missing:
             print(f"  Modell {m} ist bei OpenRouter nicht (mehr) gelistet — uebersprungen")
-        chain = [m for m in chain if m in avail]
+        chain = [m for m in chain if ist_groq(m) or m in avail]
     if not chain:
         raise RuntimeError("Keine gueltigen :free-Modelle in der Kette")
     hinten = [m for m in chain if gesperrt(m)]
@@ -189,6 +252,8 @@ def model_chain(primary, backup=None):
 
 
 def _post_once(model, prompt, max_tokens, temperature):
+    if ist_groq(model):
+        return _post_groq(model, prompt, max_tokens, temperature)
     key = os.environ.get("OPENROUTER_API_KEY")
     if not key:
         raise RuntimeError("OPENROUTER_API_KEY fehlt")
@@ -204,8 +269,36 @@ def _post_once(model, prompt, max_tokens, temperature):
         # sonst bleibt content leer. Nicht-Reasoning-Modelle ignorieren das.
         "reasoning": {"effort": "low", "exclude": True},
     }).encode()
+    return _senden("https://openrouter.ai/api/v1/chat/completions", key, payload, model)
+
+
+class GroqUebersprungen(Exception):
+    """Groq nicht nutzbar (Kontingent/Schlüssel) — weiter mit dem nächsten Modell."""
+
+
+def _post_groq(model, prompt, max_tokens, temperature):
+    key = os.environ.get("GROQ_API_KEY")
+    if not key:
+        raise GroqUebersprungen("GROQ_API_KEY fehlt")
+    if groq_rest() <= 0:
+        raise GroqUebersprungen(f"Groq-Tageszaehler: {GROQ_TAGESLIMIT} Anfragen erreicht")
+    _zaehle("anfragen", model, groq=True)
+    name = model[len(GROQ):]
+    body = {
+        "model": name,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": min(max_tokens, GROQ_MAX_TOKENS),
+        "temperature": temperature,
+    }
+    if "gpt-oss" in name:        # Reasoning-Modell: wenig denken
+        body["reasoning_effort"] = "low"
+    return _senden("https://api.groq.com/openai/v1/chat/completions", key,
+                   json.dumps(body).encode(), model)
+
+
+def _senden(url, key, payload, model):
     req = urllib.request.Request(
-        "https://openrouter.ai/api/v1/chat/completions",
+        url,
         data=payload,
         headers={
             "Authorization": f"Bearer {key}",
@@ -231,7 +324,10 @@ def llm_call(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.3)
     """Ruft LLM auf. 429/leere Antwort: kurzes Backoff, dann nächstes :free-Modell.
     Tageslimit → QuotaExhausted sofort. 401/402/403 → sofort Abbruch."""
     primary = resolve_model(model)
-    backup = resolve_model("LARGE") if model == "CHECK" else None
+    backup = None
+    if model == "CHECK":
+        # Groq-Prüferin → Nemotron → Schreib-Modell; Nemotron-Prüferin → Schreib-Modell
+        backup = [DEFAULT_CHECK, resolve_model("LARGE")] if ist_groq(primary) else resolve_model("LARGE")
     chain = model_chain(primary, backup)
     last_error = None
     waited = 0
@@ -242,7 +338,7 @@ def llm_call(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.3)
             plan = BACKOFF
             try:
                 out = _post_once(chain_model, prompt, max_tokens, temperature)
-                _zaehle("ok")
+                _zaehle("ok", groq=ist_groq(chain_model))
                 if chain_model != primary:
                     print(f"  (Antwort kam via Fallback-Modell: {chain_model})")
                 return out
@@ -252,7 +348,16 @@ def llm_call(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.3)
                     body = exc.read().decode("utf-8", errors="replace")[:500]
                 except Exception:
                     pass
-                _zaehle("r429" if exc.code == 429 else "fehler")
+                groq = ist_groq(chain_model)
+                _zaehle("r429" if exc.code == 429 else "fehler", groq=groq)
+                if groq and (exc.code in (401, 403, 413) or (exc.code == 429 and _is_daily_quota(body))):
+                    # Groq-Tageslimit, Schlüsselproblem oder Anfrage zu groß fürs Gratis-Limit:
+                    # Groq überspringen, OpenRouter übernimmt.
+                    print(f"  Groq HTTP {exc.code} bei {chain_model}: {body} — weiter ohne Groq")
+                    if exc.code != 413:
+                        sperre_modell(chain_model, 24 * 3600)
+                    last_error = RuntimeError(f"Groq HTTP {exc.code}: {body}")
+                    break
                 if exc.code == 429:
                     print(f"  429 bei {chain_model} (Versuch {attempt}): {body}")
                     if _is_daily_quota(body):
@@ -270,15 +375,19 @@ def llm_call(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.3)
                 else:
                     print(f"  HTTP {exc.code} bei {chain_model} (Versuch {attempt}): {body}")
                     last_error = RuntimeError(f"HTTP {exc.code} fuer {chain_model!r}: {body}")
+            except GroqUebersprungen as exc:
+                print(f"  {exc} — weiter ohne Groq")
+                last_error = exc
+                break
             except EmptyResponse as exc:
-                _zaehle("leer")
+                _zaehle("leer", groq=ist_groq(chain_model))
                 print(f"  leere Antwort bei {chain_model} (Versuch {attempt})")
                 last_error = exc
                 plan = BACKOFF_LEER
             except QuotaExhausted:
                 raise
             except Exception as exc:
-                _zaehle("fehler")
+                _zaehle("fehler", groq=ist_groq(chain_model))
                 print(f"  Netzwerkfehler bei {chain_model} (Versuch {attempt}): {exc}")
                 last_error = RuntimeError(f"Netzwerkfehler bei {chain_model!r}: {exc}")
                 plan = [min(w, 10) for w in BACKOFF]

@@ -55,6 +55,8 @@ def kontingent(anfragen, tage=28):
         "tage_ueber_80_prozent": sum(1 for x in n if x >= 0.8 * limit),
         "r429_gesamt": sum(z.get("r429", 0) for z in letzte),
         "anteil_429": round(sum(z.get("r429", 0) for z in letzte) / max(1, sum(n)), 3),
+        "groq_schnitt_anfragen": round(sum(z.get("groq_anfragen", 0) for z in letzte) / len(letzte), 1),
+        "groq_r429_gesamt": sum(z.get("groq_r429", 0) for z in letzte),
         "im_kontingent": max(n) < limit,
     }
 

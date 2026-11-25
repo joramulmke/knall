@@ -55,6 +55,7 @@ Automatisierte Boulevard-Pipeline: links, arbeitnehmerfreundlich, ökologisch, a
 
 Benötigte GitHub-Secrets:
 - `OPENROUTER_API_KEY` (oder Äquivalent) — für KI0–KI3
+- `GROQ_API_KEY` (optional, kostenloser Groq-Tarif ohne Zahlungsmittel) — dann prüfen KI2/KI3 zuerst mit `groq:openai/gpt-oss-120b`; Nemotron und das Schreib-Modell bleiben Backup. Eigenes Tageskontingent `KNALL_GROQ_TAGESLIMIT` (Default 900), eigene Zähler `groq_*` in `stats.json`. Groq-Tageslimit, Schlüsselfehler oder zu große Anfrage → automatisch weiter mit OpenRouter.
 
 Optional (Actions-Variablen):
 - `KI_MODEL_SMALL`, `KI_MODEL_LARGE`, `KI_MODEL_CHECK` (Prüferin KI2/KI3), `KI_FALLBACK_MODELS` (kommagetrennt) — nur `:free`-Modelle, Default siehe scripts/ki_client.py
