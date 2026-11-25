@@ -1,2 +1,6 @@
 __pycache__/
 *.pyc
+
+# Volle Entwürfe (inkl. abgelehnter Texte) nie committen — nur für den Lauf
+drafts/*
+!drafts/.gitkeep

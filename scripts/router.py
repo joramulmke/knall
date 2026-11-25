@@ -18,6 +18,7 @@ Stages: write_stage, evaluate_stage, legal_stage
 Status über drafts/_pipeline_state.json.
 """
 import json
+import re
 import sys
 import datetime
 import pathlib
@@ -47,10 +48,79 @@ def write_json(path, obj):
     path.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def redact(draft):
+    """Öffentlicher Ablehnungs-Befund OHNE Artikeltext, ohne beanstandete
+    Zitate und ohne Namen — abgelehnte Texte dürfen nicht verbreitet werden.
+    Der volle Entwurf bleibt nur im (nicht committeten) drafts/ des Laufs."""
+    def ki2_kurz(p):
+        if not isinstance(p, dict):
+            return None
+        saetze = []
+        for s in p.get("saetze") or []:
+            if isinstance(s, dict):
+                saetze.append({
+                    "satz_nr": s.get("satz_nr"),
+                    "befund": s.get("befund"),
+                    "pruefposten": [v.get("pruefposten") for v in (s.get("verstoesse") or []) if isinstance(v, dict)],
+                })
+        return {"ampel": p.get("ampel"), "titel_befund": p.get("titel_befund"), "saetze": saetze}
+
+    def ki3_kurz(r):
+        if not isinstance(r, dict):
+            return None
+        return {"entscheidung": r.get("entscheidung"),
+                "risiken": [{"frage": x.get("frage"), "urteil": x.get("urteil")}
+                            for x in (r.get("risiken") or []) if isinstance(x, dict)]}
+
+    def special_kurz(s):
+        if not isinstance(s, dict):
+            return None
+        return {"bestaende": s.get("bestaende"),
+                "zahlen_fehler": len(s.get("zahlen_fehler") or []),
+                "entities_fehler": len(s.get("entities_fehler") or []),
+                "plagiat": bool(s.get("plagiat")),
+                "injection": bool(s.get("injection")),
+                "leer": s.get("leer")}
+
+    def grund_kurz(g):
+        g = str(g)
+        if g.startswith("systemfehler"):
+            return "systemfehler"
+        g = re.sub(r"'[^']{0,2000}'", "'…'", g)  # keine LLM-Werte/Zitate
+        return g[:200]
+
+    def validierung(v):
+        if isinstance(v, list):
+            return [validierung(x) for x in v]
+        if isinstance(v, dict):
+            return {k: ([grund_kurz(g) for g in val] if k == "gruende" and isinstance(val, list) else val)
+                    for k, val in v.items()}
+        return v
+
+    cluster = draft.get("cluster") or {}
+    return {
+        "thema": cluster.get("thema"),
+        "ressort": cluster.get("ressort"),
+        "quellen": [{"titel": q.get("titel"), "url": q.get("url")} for q in draft.get("quellen_meta", [])],
+        "quellen_verworfen": len(draft.get("quellen_verworfen") or []),
+        "ablehnungsgruende": [grund_kurz(g) for g in draft.get("ablehnungsgruende", [])],
+        "abbruch": bool(draft.get("abbruch")),
+        "gelb_erschoepft": bool(draft.get("gelb_erschoepft")),
+        "ki2_endampel": draft.get("ki2_endampel"),
+        "ki2_validierung": validierung(draft.get("ki2_validierung")),
+        "ki2": ki2_kurz(draft.get("ki2_protokoll")),
+        "special_checks": special_kurz(draft.get("special_checks")),
+        "ki3": ki3_kurz(draft.get("ki3_entscheidung")),
+        "ki3_validierung": validierung(draft.get("ki3_validierung")),
+        "ki3_nachbesserung": bool(draft.get("ki3_nachbesserung")),
+    }
+
+
 def reject(today, name, draft, grund):
     draft["ampel_final"] = "rot"
     draft.setdefault("ablehnungsgruende", []).append(grund)
-    write_json(REJECTED / f"{today}-{name}.json", draft)
+    fname = name if name.startswith(today) else f"{today}-{name}"
+    write_json(REJECTED / f"{fname}.json", redact(draft))
     print(f"  → rejected: {grund}")
 
 
@@ -305,7 +375,8 @@ def legal_stage():
             elif entscheidung == "nachbesserung":
                 neu, fehl = apply_replacements(draft["text"], result.get("risiken", []))
                 if fehl:
-                    reject(today, dpath.stem, draft, f"KI3-Nachbesserung nicht anwendbar: {fehl}")
+                    # Stellen selbst nicht loggen (Zitat aus abgelehntem Text)
+                    reject(today, dpath.stem, draft, f"KI3-Nachbesserung nicht anwendbar ({len(fehl)} Stelle(n) nicht gefunden)")
                     write_json(dpath, draft)
                     continue
                 draft["text_vor_ki3"] = draft["text"]
