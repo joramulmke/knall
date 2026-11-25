@@ -55,8 +55,26 @@ def kontingent(anfragen, tage=28):
         "tage_ueber_80_prozent": sum(1 for x in n if x >= 0.8 * limit),
         "r429_gesamt": sum(z.get("r429", 0) for z in letzte),
         "anteil_429": round(sum(z.get("r429", 0) for z in letzte) / max(1, sum(n)), 3),
+        "groq_schnitt_anfragen": round(sum(z.get("groq_anfragen", 0) for z in letzte) / len(letzte), 1),
+        "groq_r429_gesamt": sum(z.get("groq_r429", 0) for z in letzte),
         "im_kontingent": max(n) < limit,
     }
+
+
+def volltext_bilanz():
+    """Erfolgsquote der Originalartikel pro Feed (letzte 14 Tage) aus dem
+    Gedächtnis von fulltext.py — zeigt, welche Feeds dauerhaft blocken."""
+    f = ROOT / "archiv" / "volltext_quellen.json"
+    try:
+        ged = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+    except json.JSONDecodeError:
+        return {}
+    out = {}
+    for feed, tage in sorted(ged.items()):
+        ok = sum(t.get("ok", 0) for t in tage.values())
+        fehl = sum(t.get("fehl", 0) for t in tage.values())
+        out[feed] = {"ok": ok, "blockiert": fehl, "tage": len(tage)}
+    return out
 
 
 def main():
@@ -86,6 +104,7 @@ def main():
         if z.get("anfragen", 0) >= 0.8 * limit:
             data[day]["warnung_kontingent"] = True
     data["_kontingent"] = kontingent(anfragen)
+    data["_volltext"] = volltext_bilanz()
     STATS.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(data, ensure_ascii=False)[:2000])
 

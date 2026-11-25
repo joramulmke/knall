@@ -114,6 +114,7 @@ definitions:
     region: brandenburg
     ressort: lokal
   lvz:
+    aktiv: false   # 2026-11-25: blockt Abrufe (HTTP 403 bei 7 von 7 Artikeln), Volltext nicht erreichbar
     type: nativ
     name: "Leipziger Volkszeitung"
     url: https://www.lvz.de/arc/outboundfeeds/rss/
@@ -140,6 +141,7 @@ definitions:
     region: sachsen-anhalt
     ressort: lokal
   ostsee_zeitung:
+    aktiv: false   # 2026-11-25: blockt Abrufe (HTTP 403 bei 7 von 7 Artikeln), Volltext nicht erreichbar
     type: google-news-mirror
     query: "site:ostsee-zeitung.de"
     region: mecklenburg-vorpommern
