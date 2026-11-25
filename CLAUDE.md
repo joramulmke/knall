@@ -11,3 +11,8 @@
 ## Nachrichten und Veröffentlichungen
 - Vor jedem PR, Kommentar, jeder Nachricht oder E-Mail zuerst einen
   Entwurf zeigen; erst nach OK veröffentlichen.
+
+## Keine Infrastruktur-Namen
+- Hosting-Anbieter, Server-Namen und Mirror-Ziele nie in Dateien, Commits,
+  PRs oder Kommentaren nennen. Neutral schreiben: "Deploy-Server", "Mirror".
+  Die konkreten Ziele stehen nur in den Secrets.
