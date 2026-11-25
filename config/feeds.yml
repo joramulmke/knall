@@ -63,7 +63,8 @@ definitions:
   destatis:
     type: nativ
     name: "Statistisches Bundesamt"
-    url: https://www.destatis.de/SiteGlobal/RSS/Meldungen.rdf
+    # 2026-11-25: alte URL (SiteGlobal/RSS/Meldungen.rdf) lieferte HTTP 404
+    url: https://www.destatis.de/SiteGlobal/Functions/RSSFeed/DE/RSSNewsfeed/RSSNewsfeed.xml
     ressort: woche
   verdi_pm:
     type: google-news-mirror
@@ -162,9 +163,51 @@ definitions:
     region: brandenburg
     ressort: lokal
   thueringer_post:
+    aktiv: false   # 2026-11-25: Spiegel lieferte 0 Eintraege; Thueringen deckt jetzt mdr_thueringen ab
     type: google-news-mirror
     query: "site:tp-online.de"
     region: thueringen
+    ressort: lokal
+
+  # ---------- Öffentlich-rechtliche Regionalsender + unabhängige Lokalpresse ----------
+  # 2026-11-25 ergänzt: Volltexte frei lesbar (keine Paywall), Ost-Schwerpunkt.
+  # URLs ungeprüft eingetragen — collect.py warnt bei 0 Einträgen/HTTP-Fehler,
+  # dann im Lauf-Log nachsehen und URL korrigieren.
+  mdr_sachsen:
+    type: nativ
+    name: "MDR"
+    url: https://www.mdr.de/nachrichten/sachsen/index-rss.xml
+    region: sachsen
+    ressort: lokal
+  mdr_sachsen_anhalt:
+    type: nativ
+    name: "MDR"
+    url: https://www.mdr.de/nachrichten/sachsen-anhalt/index-rss.xml
+    region: sachsen-anhalt
+    ressort: lokal
+  mdr_thueringen:
+    type: nativ
+    name: "MDR"
+    url: https://www.mdr.de/nachrichten/thueringen/index-rss.xml
+    region: thueringen
+    ressort: lokal
+  rbb24:
+    type: nativ
+    name: "rbb24"
+    url: https://www.rbb24.de/aktuell/index.xml/feed=rss.xml
+    region: brandenburg
+    ressort: lokal
+  ndr_mv:
+    type: nativ
+    name: "NDR"
+    url: https://www.ndr.de/nachrichten/mecklenburg-vorpommern/index-rss.xml
+    region: mecklenburg-vorpommern
+    ressort: lokal
+  l_iz:
+    type: nativ
+    name: "Leipziger Internet Zeitung"
+    url: https://www.l-iz.de/feed
+    region: sachsen
     ressort: lokal
 
 # --- Score-Gewichte (score.py) ---
