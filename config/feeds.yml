@@ -61,11 +61,9 @@ definitions:
 
   # ---------- Behörden / Institutionen ----------
   destatis:
-    aktiv: false   # 2026-11-25: auch die neue RSS-Adresse liefert HTTP 404 — richtige URL von destatis.de eintragen
     type: nativ
     name: "Statistisches Bundesamt"
-    # 2026-11-25: alte URL (SiteGlobal/RSS/Meldungen.rdf) lieferte HTTP 404
-    url: https://www.destatis.de/SiteGlobal/Functions/RSSFeed/DE/RSSNewsfeed/RSSNewsfeed.xml
+    url: https://www.destatis.de/SiteGlobals/Functions/RSSFeed/DE/RSSNewsfeed/Aktuell.xml
     ressort: woche
   verdi_pm:
     type: google-news-mirror
