@@ -1,12 +1,13 @@
 {
   "2026-11-25": {
-    "rot": 3,
+    "rot": 4,
     "gelb": 0,
     "ki3_stopp": 0,
     "fehler": 0,
     "abgelaufen": 0,
     "published": 0,
     "gruende": [
+      "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft"
@@ -26,11 +27,11 @@
         "inclusionai/ling-3.2-flash:free": 3,
         "groq:openai/gpt-oss-120b": 12,
         "groq:llama-3.3-70b-versatile": 1,
-        "groq:openai/gpt-oss-20b": 2
+        "groq:openai/gpt-oss-20b": 6
       },
       "limit": 50,
-      "groq_anfragen": 15,
-      "groq_ok": 8,
+      "groq_anfragen": 19,
+      "groq_ok": 12,
       "groq_r429": 5,
       "groq_fehler": 2,
       "groq_leer": 0,
@@ -52,7 +53,7 @@
     "tage_ueber_80_prozent": 1,
     "r429_gesamt": 20,
     "anteil_429": 0.4,
-    "groq_schnitt_anfragen": 15.0,
+    "groq_schnitt_anfragen": 19.0,
     "groq_r429_gesamt": 5,
     "im_kontingent": false
   },

@@ -1,0 +1,91 @@
+{
+  "thema": "Mord in Cottbus",
+  "ressort": "pflege",
+  "quellen": [
+    {
+      "titel": "Angriff in Cottbus: Mann stirbt durch Prügel, Angreifer wegen Totschlags vor Gericht",
+      "url": "https://www.lr-online.de/nachrichten/brandenburg/prozessauftakt-tod-durch-pruegel-in-cottbus-79781698.html",
+      "medium": "Lausitzer Rundschau"
+    }
+  ],
+  "quellen_verworfen": 0,
+  "ablehnungsgruende": [
+    "KI2 rot/gelb-erschoepft"
+  ],
+  "abbruch": false,
+  "gelb_erschoepft": false,
+  "ki2_endampel": "rot",
+  "ki2_validierung": [
+    {
+      "ampel": "rot",
+      "gruende": []
+    }
+  ],
+  "ki2": {
+    "ampel": "rot",
+    "titel_befund": "rot",
+    "saetze": [
+      {
+        "satz_nr": 0,
+        "befund": "rot",
+        "pruefposten": [
+          "P3"
+        ]
+      },
+      {
+        "satz_nr": 1,
+        "befund": "rot",
+        "pruefposten": [
+          "P4"
+        ]
+      },
+      {
+        "satz_nr": 2,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 3,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 4,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 5,
+        "befund": "rot",
+        "pruefposten": [
+          "P7"
+        ]
+      },
+      {
+        "satz_nr": 6,
+        "befund": "rot",
+        "pruefposten": [
+          "P7"
+        ]
+      },
+      {
+        "satz_nr": 7,
+        "befund": "rot",
+        "pruefposten": [
+          "P7"
+        ]
+      }
+    ]
+  },
+  "special_checks": {
+    "bestaende": true,
+    "zahlen_fehler": 0,
+    "entities_fehler": 0,
+    "plagiat": false,
+    "injection": false,
+    "leer": false
+  },
+  "ki3": null,
+  "ki3_validierung": null,
+  "ki3_nachbesserung": false
+}
