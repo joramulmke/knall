@@ -266,6 +266,73 @@ definitions:
     datum: feed
     ressort: woche
 
+  # ---------- Bundestag (bundestag.de) ----------
+  # 2026-11-25 ergänzt: hib-Kurzmeldungen, Pressemitteilungen und die Themenfeeds,
+  # die zu den Knall-Ressorts passen. Bewusst NICHT: Drucksachen, Plenarprotokolle,
+  # Wiss. Dienste (meist PDF, kein Volltext), Tagesordnungen, Stellenausschreibungen,
+  # Themen ohne Ressort-Bezug (Sport, Tourismus, Verteidigung, Auswärtiges u. a.).
+  # Themenfeeds überschneiden sich mit hib — doppelte Original-URLs werden übersprungen.
+  bt_hib:
+    type: nativ
+    name: "Deutscher Bundestag"
+    url: https://www.bundestag.de/static/appdata/includes/rss/hib.rss
+    ressort: all
+  bt_pressemitteilungen:
+    type: nativ
+    name: "Deutscher Bundestag"
+    url: https://www.bundestag.de/static/appdata/includes/rss/pressemitteilungen.rss
+    ressort: all
+  bt_arbeit_soziales:
+    type: nativ
+    name: "Deutscher Bundestag"
+    url: https://www.bundestag.de/static/appdata/includes/rss/arbeitsoziales.rss
+    ressort: kohle
+  bt_wirtschaft_energie:
+    type: nativ
+    name: "Deutscher Bundestag"
+    url: https://www.bundestag.de/static/appdata/includes/rss/wirtschaft.rss
+    ressort: kohle
+  bt_haushalt:
+    type: nativ
+    name: "Deutscher Bundestag"
+    url: https://www.bundestag.de/static/appdata/includes/rss/haushalt.rss
+    ressort: kohle
+  bt_wohnen:
+    type: nativ
+    name: "Deutscher Bundestag"
+    url: https://www.bundestag.de/static/appdata/includes/rss/bauwohnenstadtentwicklungkommunen.rss
+    ressort: wohnen
+  bt_gesundheit:
+    type: nativ
+    name: "Deutscher Bundestag"
+    url: https://www.bundestag.de/static/appdata/includes/rss/gesundheit.rss
+    ressort: pflege
+  bt_familie_senioren:
+    type: nativ
+    name: "Deutscher Bundestag"
+    url: https://www.bundestag.de/static/appdata/includes/rss/familie.rss
+    ressort: pflege
+  bt_umwelt_klima:
+    type: nativ
+    name: "Deutscher Bundestag"
+    url: https://www.bundestag.de/static/appdata/includes/rss/umwelt.rss
+    ressort: klima
+  bt_menschenrechte:
+    type: nativ
+    name: "Deutscher Bundestag"
+    url: https://www.bundestag.de/static/appdata/includes/rss/menschenrechte.rss
+    ressort: alle-gleich
+  bt_petitionen:
+    type: nativ
+    name: "Deutscher Bundestag"
+    url: https://www.bundestag.de/static/appdata/includes/rss/petitionen.rss
+    ressort: alle-gleich
+  bt_recht_verbraucher:
+    type: nativ
+    name: "Deutscher Bundestag"
+    url: https://www.bundestag.de/static/appdata/includes/rss/recht.rss
+    ressort: woche
+
 # --- Score-Gewichte (score.py) ---
 scores:
   keywords_kohle:
