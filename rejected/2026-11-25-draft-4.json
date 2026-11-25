@@ -1,0 +1,147 @@
+{
+  "thema": "Klinik Beeskow: drohender Schrumpfkurs und Finanzkrise",
+  "ressort": "pflege",
+  "quellen": [
+    {
+      "titel": "Oder-Spree-Krankenhaus Beeskow: Privatisierung, Fusion oder Schrumpfkurs?",
+      "url": "https://www.rbb24.de/politik/beitrag/2026/11/brandenburg-krankenhaus-reform-klinik-beeskow-kosten-druck-privatisierung-fusion.html",
+      "medium": "rbb24"
+    },
+    {
+      "titel": "Krankenhausfinanzierung | Kreisklinik wagt den Klageweg",
+      "url": "https://www.nd-aktuell.de/artikel/1204148.krankenhausfinanzierung-kreisklinik-wagt-den-klageweg.html",
+      "medium": "nd"
+    }
+  ],
+  "quellen_verworfen": 0,
+  "ablehnungsgruende": [
+    "KI3-Nachbesserung nicht anwendbar (1 Stelle(n) nicht gefunden)"
+  ],
+  "abbruch": false,
+  "gelb_erschoepft": false,
+  "ki2_endampel": "gruen",
+  "ki2_validierung": [
+    {
+      "ampel": "gruen",
+      "gruende": []
+    }
+  ],
+  "ki2": {
+    "ampel": "gruen",
+    "titel_befund": "ok",
+    "saetze": [
+      {
+        "satz_nr": 0,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 1,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 2,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 3,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 4,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 5,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 6,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 7,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 8,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 9,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 10,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 11,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 12,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 13,
+        "befund": "ok",
+        "pruefposten": []
+      }
+    ]
+  },
+  "special_checks": {
+    "bestaende": true,
+    "zahlen_fehler": 0,
+    "entities_fehler": 0,
+    "plagiat": false,
+    "injection": false,
+    "leer": false
+  },
+  "ki3": {
+    "entscheidung": "nachbesserung",
+    "risiken": [
+      {
+        "frage": "R1",
+        "urteil": "grenzwertig"
+      },
+      {
+        "frage": "R2",
+        "urteil": "unauffällig"
+      },
+      {
+        "frage": "R3",
+        "urteil": "unauffällig"
+      },
+      {
+        "frage": "R4",
+        "urteil": "unauffällig"
+      },
+      {
+        "frage": "R5",
+        "urteil": "unauffällig"
+      },
+      {
+        "frage": "R6",
+        "urteil": "unauffällig"
+      }
+    ]
+  },
+  "ki3_validierung": {
+    "entscheidung": "nachbesserung",
+    "gruende": []
+  },
+  "ki3_nachbesserung": false
+}
