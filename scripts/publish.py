@@ -49,7 +49,14 @@ def main():
             continue
         cluster = draft.get("cluster", {})
         out = unique_path(ROOT / "published" / f"{today}-{slugify(cluster.get('thema'))}.md")
-        quellen = [{"titel": q.get("titel"), "url": q.get("url")} for q in draft.get("quellen_meta", [])]
+        # Nur Originalartikel mit ihrer Original-URL (kein Google-News-Link)
+        quellen = [{"titel": q.get("titel"), "url": q.get("url"), "medium": q.get("medium")}
+                   for q in draft.get("quellen_meta", [])
+                   if str(q.get("url") or "").startswith(("http://", "https://"))
+                   and "news.google.com" not in str(q.get("url"))]
+        if not quellen:
+            print(f"::warning::{dpath.name} hat keine Original-Quelle — NICHT veroeffentlicht")
+            continue
         meta = {
             "datum": today,
             "thema": cluster.get("thema"),
@@ -64,7 +71,9 @@ def main():
             meta["entstanden"] = draft["tag"]
         # JSON-Werte sind gültiges YAML → keine kaputten Frontmatter durch ':' o. ä.
         frontmatter = "\n".join(f"{k}: {json.dumps(v, ensure_ascii=False)}" for k, v in meta.items())
-        quellen_md = "\n".join(f"- [{q['titel'] or q['url']}]({q['url']})" for q in quellen if q.get("url"))
+        quellen_md = "\n".join(
+            f"- [{q['titel'] or q['url']}]({q['url']})" + (f" — {q['medium']}" if q.get("medium") else "")
+            for q in quellen)
         body = draft["text"].strip()
         out.write_text(
             f"---\n{frontmatter}\n---\n\n{body}\n\n"

@@ -1,0 +1,6 @@
+# Fest gepinnt (Lieferketten-Schutz). Update bewusst per Commit.
+pyyaml==6.0.2
+feedparser==6.0.11
+requests==2.32.3
+trafilatura==2.0.0
+pytest==8.3.4

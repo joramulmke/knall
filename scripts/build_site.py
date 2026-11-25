@@ -34,6 +34,14 @@ def parse(md):
     return meta, body
 
 
+def ohne_markdown(t):
+    """KI-Ausgaben enthalten mitunter **fett**/__fett__ oder # — als Klartext
+    sähe man die Zeichen. Entfernen statt rendern (kein Markdown → kein XSS)."""
+    t = re.sub(r"(\*\*|__)(.+?)\1", r"\2", t, flags=re.S)
+    t = re.sub(r"^\s*#+\s*", "", t, flags=re.M)
+    return t.replace("**", "")
+
+
 def safe_url(u):
     u = str(u or "").strip()
     return u if re.match(r"^https?://", u, re.I) else None
@@ -43,14 +51,18 @@ def render(meta, body):
     lines = [l for l in body.splitlines()]
     while lines and not lines[0].strip():
         lines.pop(0)
-    titel = lines[0].lstrip("# ").strip() if lines else str(meta.get("thema") or "")
-    text = "\n".join(lines[1:]).strip()
+    titel = ohne_markdown(lines[0]).strip().strip("*_ ") if lines else str(meta.get("thema") or "")
+    if titel.lower().startswith("titel:"):
+        titel = titel[6:].strip()
+    text = ohne_markdown("\n".join(lines[1:]).strip())
     quellen = []
     for q in meta.get("quellen") or []:
         if isinstance(q, dict) and safe_url(q.get("url")):
             quellen.append(
                 f'<li><a href="{html.escape(safe_url(q["url"]), quote=True)}" rel="nofollow noopener">'
-                f'{html.escape(str(q.get("titel") or q["url"]))}</a></li>'
+                f'{html.escape(str(q.get("titel") or q["url"]))}</a>'
+                + (f' — {html.escape(str(q["medium"]))}' if q.get("medium") else "")
+                + "</li>"
             )
     return (
         "<article>\n"
@@ -58,7 +70,7 @@ def render(meta, body):
         f'<div class="meta">{html.escape(str(meta.get("datum", "")))} · {html.escape(str(meta.get("ressort") or ""))}'
         " · KI-generiert, maschinell geprüft</div>\n"
         f'<div class="body">{html.escape(text)}</div>\n'
-        + (f'<ul class="quellen">{"".join(quellen)}</ul>\n' if quellen else "")
+        + (f'<div class="quellen-titel">Quellen</div><ul class="quellen">{"".join(quellen)}</ul>\n' if quellen else "")
         + "</article>"
     )
 

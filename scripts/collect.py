@@ -1,5 +1,8 @@
 """
 collect.py — Holt RSS-Feeds, dedupliziert, archiviert in sources/YYYY-MM-DD/.
+
+Hier entstehen nur Teaser. Den Volltext und die Original-URL (bei
+Google-News-Spiegeln) holt danach fulltext.py — nur für die besten Kandidaten.
 """
 import json
 import hashlib
@@ -44,6 +47,8 @@ def fetch(feed_key, feed_def):
         status = getattr(parsed, "status", "?")
         reason = getattr(parsed, "bozo_exception", "")
         print(f"::warning::{feed_key}: 0 Eintraege (HTTP {status}) {reason}")
+    is_mirror = feed_def.get("type") == "google-news-mirror"
+    feed_title = clean_text(getattr(parsed, "feed", {}).get("title", "")) if not is_mirror else ""
     saved = 0
     for entry in parsed.entries[:25]:
         link = getattr(entry, "link", None)
@@ -55,18 +60,29 @@ def fetch(feed_key, feed_def):
             continue
         # Google-News-Artikel haben oft nur Titel/Zusammenfassung — Vollständigkeit prüfen
         summary = clean_text(getattr(entry, "summary", ""))
-        fulltext_ok = len(summary) > 400
+        title = clean_text(getattr(entry, "title", ""))
+        # Echter Name des Mediums: bei Google News aus <source>, sonst aus
+        # der Konfiguration (name:) oder dem Feed-Titel
+        if is_mirror:
+            src = getattr(entry, "source", None) or {}
+            medium = clean_text(src.get("title", "") if hasattr(src, "get") else "")
+            if medium and title.endswith(" - " + medium):
+                title = title[: -len(" - " + medium)].strip()
+        else:
+            medium = clean_text(feed_def.get("name") or feed_title)
         item = {
             "id": iid,
             "source_key": feed_key,
             "ressort": feed_def.get("ressort", "all"),
             "region": feed_def.get("region"),
-            "url": link,
-            "title": clean_text(getattr(entry, "title", "")),
+            "url": link,                      # Feed-Link (bei Spiegeln: Google-Weiterleitung)
+            "google_news": is_mirror,
+            "medium": medium or None,
+            "title": title,
             "summary": summary,
             "published": getattr(entry, "published", ""),
             "collected_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            "vollstaendig": fulltext_ok,
+            "vollstaendig": False,            # erst fulltext.py setzt True (Originalartikel gelesen)
             "score": None,
         }
         path.write_text(json.dumps(item, ensure_ascii=False, indent=2), encoding="utf-8")

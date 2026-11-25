@@ -12,8 +12,15 @@ v5:
 - Kein Sleep nach dem letzten Versuch; 400/404 eines Modells → nächstes Modell.
 - 429-Antworttext wird bei jedem Versuch geloggt.
 
+v6:
+- Eigener Tageszähler (drafts/<tag>-anfragen.json): JEDER HTTP-Versuch zählt,
+  429 und andere Fehler werden separat gezählt. Ab KNALL_TAGESLIMIT_ANFRAGEN
+  (Default 50, wie das OpenRouter-Free-Kontingent) wird nicht mehr angefragt.
+- Rolle "CHECK" für KI2/KI3: andere Modellfamilie als die Schreiberin
+  (unabhängigere Prüfung); die Schreib-Modelle bleiben als Backup in der Kette.
+
 Modell-Auflösung: Env-Variablen KI_MODEL_SMALL / KI_MODEL_LARGE /
-KI_FALLBACK_MODELS (kommagetrennt), alle optional.
+KI_MODEL_CHECK / KI_FALLBACK_MODELS (kommagetrennt), alle optional.
 """
 import os
 import json
@@ -27,6 +34,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 DEFAULT_SMALL = "google/gemma-4-26b-a4b-it:free"
 DEFAULT_LARGE = "google/gemma-4-31b-it:free"
+# Prüferin (KI2/KI3): bewusst andere Modellfamilie als KI1. Fällt sie aus,
+# übernimmt das Schreib-Modell als Backup (siehe model_chain).
+DEFAULT_CHECK = "nvidia/nemotron-3.5-lightning:free"
 
 # Fallback-Kette bei persistentem 429, leeren Antworten oder fehlendem Modell.
 DEFAULT_FALLBACK_CHAIN = [
@@ -38,6 +48,9 @@ DEFAULT_FALLBACK_CHAIN = [
 BACKOFF = [20, 60, 120]          # Wartezeit NACH Versuch 1, 2 (und 3 entfällt)
 CALL_WAIT_BUDGET_S = 600         # max. Summe aller Wartezeiten pro llm_call
 DEFAULT_MAX_TOKENS = 4000        # Free-Modelle: Tokens kosten nichts, Reasoning braucht Platz
+# Ein Artikel braucht realistisch ~6, im ungünstigsten Fall ~12 Anfragen.
+MIN_BUDGET_NEUER_ARTIKEL = int(os.environ.get("KNALL_MIN_BUDGET_ARTIKEL") or 8)
+TAGESLIMIT = int(os.environ.get("KNALL_TAGESLIMIT_ANFRAGEN") or 50)
 
 
 class EmptyResponse(Exception):
@@ -59,7 +72,44 @@ def require_free(model):
     return model
 
 
+def _zaehler_pfad():
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from common import run_day
+    return ROOT / "drafts" / f"{run_day()}-anfragen.json"
+
+
+def zaehler():
+    """Tageszähler: anfragen (alle HTTP-Versuche), ok, r429, fehler, leer, modelle."""
+    f = _zaehler_pfad()
+    try:
+        z = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+    except json.JSONDecodeError:
+        z = {}
+    for k in ("anfragen", "ok", "r429", "fehler", "leer"):
+        z.setdefault(k, 0)
+    z.setdefault("modelle", {})
+    z["limit"] = TAGESLIMIT
+    return z
+
+
+def _zaehle(art, model=None):
+    z = zaehler()
+    z[art] = z.get(art, 0) + 1
+    if art == "anfragen" and model:
+        z["modelle"][model] = z["modelle"].get(model, 0) + 1
+    f = _zaehler_pfad()
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(json.dumps(z, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def budget_rest():
+    """Wie viele Anfragen heute noch ins Kontingent passen."""
+    return max(0, TAGESLIMIT - zaehler()["anfragen"])
+
+
 def resolve_model(model):
+    if model == "CHECK":
+        return require_free(env_or("KI_MODEL_CHECK", DEFAULT_CHECK))
     if model == "LARGE":
         return require_free(env_or("KI_MODEL_LARGE", DEFAULT_LARGE))
     if not model or not str(model).strip() or model == "SMALL":
@@ -85,11 +135,12 @@ def available_free_models():
     return _AVAILABLE or None
 
 
-def model_chain(primary):
+def model_chain(primary, backup=None):
+    """[primary, backup (z. B. Schreib-Modell für die Prüferin), Fallbacks…]"""
     raw = os.environ.get("KI_FALLBACK_MODELS", "")
     fallbacks = [m.strip() for m in raw.split(",") if m.strip()] or DEFAULT_FALLBACK_CHAIN
     chain = []
-    for m in [primary] + fallbacks:
+    for m in [primary] + ([backup] if backup else []) + fallbacks:
         if m in chain:
             continue
         try:
@@ -113,6 +164,9 @@ def _post_once(model, prompt, max_tokens, temperature):
     key = os.environ.get("OPENROUTER_API_KEY")
     if not key:
         raise RuntimeError("OPENROUTER_API_KEY fehlt")
+    if budget_rest() <= 0:
+        raise QuotaExhausted(f"eigener Tageszaehler: {TAGESLIMIT} Anfragen erreicht")
+    _zaehle("anfragen", model)
     payload = json.dumps({
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
@@ -149,7 +203,8 @@ def llm_call(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.3)
     """Ruft LLM auf. 429/leere Antwort: kurzes Backoff, dann nächstes :free-Modell.
     Tageslimit → QuotaExhausted sofort. 401/402/403 → sofort Abbruch."""
     primary = resolve_model(model)
-    chain = model_chain(primary)
+    backup = resolve_model("LARGE") if model == "CHECK" else None
+    chain = model_chain(primary, backup)
     last_error = None
     waited = 0
     for chain_model in chain:
@@ -158,6 +213,7 @@ def llm_call(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.3)
             is_last = attempt == len(BACKOFF) + 1
             try:
                 out = _post_once(chain_model, prompt, max_tokens, temperature)
+                _zaehle("ok")
                 if chain_model != primary:
                     print(f"  (Antwort kam via Fallback-Modell: {chain_model})")
                 return out
@@ -167,6 +223,7 @@ def llm_call(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.3)
                     body = exc.read().decode("utf-8", errors="replace")[:500]
                 except Exception:
                     pass
+                _zaehle("r429" if exc.code == 429 else "fehler")
                 if exc.code == 429:
                     print(f"  429 bei {chain_model} (Versuch {attempt}): {body}")
                     if _is_daily_quota(body):
@@ -182,9 +239,13 @@ def llm_call(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.3)
                     print(f"  HTTP {exc.code} bei {chain_model} (Versuch {attempt}): {body}")
                     last_error = RuntimeError(f"HTTP {exc.code} fuer {chain_model!r}: {body}")
             except EmptyResponse as exc:
+                _zaehle("leer")
                 print(f"  leere Antwort bei {chain_model} (Versuch {attempt})")
                 last_error = exc
+            except QuotaExhausted:
+                raise
             except Exception as exc:
+                _zaehle("fehler")
                 print(f"  Netzwerkfehler bei {chain_model} (Versuch {attempt}): {exc}")
                 last_error = RuntimeError(f"Netzwerkfehler bei {chain_model!r}: {exc}")
                 wait = min(wait, 10)
@@ -273,6 +334,11 @@ def curate():
             out.write_text("{\"cluster\": []}", encoding="utf-8")
         return
 
+    if budget_rest() < MIN_BUDGET_NEUER_ARTIKEL:
+        print(f"KI0 uebersprungen: nur noch {budget_rest()} Anfragen im Tageskontingent "
+              f"(mind. {MIN_BUDGET_NEUER_ARTIKEL} fuer einen neuen Artikel noetig)")
+        return
+
     bereits = [c.get("thema") for day in (prev_day(), today) for c in (load(day).get("cluster") or []) if c.get("thema")]
     listing = []
     for item in top:
@@ -281,7 +347,8 @@ def curate():
             "quelle": item["source_key"],
             "ressort": item.get("ressort_detected"),
             "titel": item["title"],
-            "auszug": item["summary"][:300],
+            "medium": item.get("medium"),
+            "auszug": (item.get("volltext") or item["summary"])[:600],
             "score": item["score"],
         })
     prompt = (ROOT / "prompts" / "ki0.txt").read_text(encoding="utf-8")
@@ -316,6 +383,15 @@ if __name__ == "__main__":
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
     cmd = sys.argv[1] if len(sys.argv) > 1 else "curate"
     if cmd == "curate":
-        curate()
+        # Wie die anderen Stufen: ein KI0-Fehler darf den Lauf nicht abbrechen —
+        # offene Entwürfe von gestern/heute werden trotzdem weiter bearbeitet.
+        try:
+            curate()
+        except QuotaExhausted as exc:
+            print(f"::error::KI0: Tageslimit erreicht — keine neuen Themen heute: {exc}")
+        except Exception as exc:
+            import traceback
+            traceback.print_exc()
+            print(f"::error::KI0 fehlgeschlagen — keine neuen Themen in diesem Lauf: {exc}")
     else:
         raise SystemExit(f"Unbekannter Befehl: {cmd}")

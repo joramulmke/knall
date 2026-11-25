@@ -5,15 +5,16 @@ Automatisierte Boulevard-Pipeline: links, arbeitnehmerfreundlich, ökologisch, a
 ## Wie es funktioniert
 
 1. **Sammeln** (GitHub Actions, täglich 06:00): RSS-Feeds von taz, nd, tagesschau, Deutschlandfunk, Ostdeutscher Lokalpresse (via Google-News-Spiegelfeeds), Behörden und Gewerkschaften werden gepollt.
-2. **Maschinelle Vorbewertung** (Python, kostenlos): Keyword-Score nach Ressort, Duplikat-Filters, Vollständigkeit. Nur Top-Kandidaten kommen weiter.
-3. **KI0 — Kuratorin** (kleines LLM): wählt 1–3 Themen, bildet Quellen-Cluster.
-4. **KI1 — Schreiberin** (großes LLM): schreibt aus den Quellen, Maximum 250 Wörter, Sprachgesetz im Prompt.
-5. **Regex-Gate** (Python): Stil- und Formfehler maschinell erkannt — Konjunktive, Eskalationsfloskeln, ANÜGRUPPE, erummelte Zahlen. Fehlertexte gehen billige Korrekturrunde zurück zu KI1, vor dem teuren KI2-Aufruf.
-6. **KI2 — Prüferin** (großes LLM): Satz-für-Satz-Fakt-Prüfung (P1–P10), Ampel-JSON.
-7. **Maschinelle Sonderprüfungen** (Python): Zahlen-Diff gegen Quelle, Entity-Check, N-Gramm-Plagiatscheck — der harte Boden unter allen LLMs.
-8. **Ampel-Router**: Rot → rejected/ (mit Befund, fürs Statistiksystem). Gelb → max. 2 Korrekturrunden, dann Rot. Grün → weiter.
-9. **KI3 — Rechtsabnahme** (LLM): Persönlichkeitsrechte, üble Nachrede. Freigabe → published/.
-10. **Veröffentlichen**: `build_site.py` rendert published/ (HTML-escaped) in site/index.html, GitHub Pages veröffentlicht.
+2. **Maschinelle Vorbewertung** (Python, kostenlos): Keyword-Score nach Ressort auf den Teasern.
+3. **Originalartikel holen** (`fulltext.py`): Für die besten Teaser wird die Original-URL ermittelt (Google-News-Links werden aufgelöst) und der Volltext gelesen (robots.txt wird respektiert). Paywall-Teaser, Duplikate und nicht auflösbare Links fallen raus — **geschrieben wird nur aus Originalartikeln**. Danach erneute Bewertung auf dem Volltext.
+4. **KI0 — Kuratorin** (kleines LLM): wählt 1–3 Themen, bildet Quellen-Cluster.
+5. **KI1 — Schreiberin** (großes LLM): schreibt aus den Quellen, Maximum 250 Wörter, Sprachgesetz im Prompt.
+6. **Regex-Gate** (Python): Stil- und Formfehler maschinell erkannt — Konjunktive, Passiv, Floskeln, Ansprache, GROSSBUCHSTABEN. Fehlertexte gehen als billige Korrekturrunde zurück zu KI1. Läuft nach **jeder** Textänderung (Entwurf, Gelb-Korrektur, KI3-Ersatzformulierung).
+7. **KI2 — Prüferin** (andere Modellfamilie als KI1, Schreib-Modell als Backup): Satz-für-Satz-Fakt-Prüfung (P1–P10), Ampel-JSON.
+8. **Maschinelle Sonderprüfungen** (Python, ohne KI): Zahlen-Diff gegen Quelle — exakt nach Wert, Ziffern und Zahlwörter inkl. Größenordnung („zwei“ = 2, „2,5 Mio.“ = 2.500.000), Entity-Check, N-Gramm-Plagiatscheck — der harte Boden unter allen LLMs. Abgesichert durch Tests (`tests/`), die vor jedem Lauf laufen.
+9. **Ampel-Router**: Rot → rejected/ (mit Befund, fürs Statistiksystem). Gelb → max. 2 Korrekturrunden, dann Rot. Grün → weiter.
+10. **KI3 — Rechtsabnahme** (Prüf-Modell wie KI2): Persönlichkeitsrechte, üble Nachrede. Freigabe → published/.
+11. **Veröffentlichen**: `build_site.py` rendert published/ (HTML-escaped) in site/index.html, GitHub Pages veröffentlicht. Unter jedem Artikel stehen die Originalartikel mit Original-URL und Medium.
 
 ## Sicherheitsmodell (keine menschliche Freigabe → fail-closed)
 
@@ -22,7 +23,8 @@ Automatisierte Boulevard-Pipeline: links, arbeitnehmerfreundlich, ökologisch, a
 - KI2: Grün nur, wenn das Protokoll vollständig ist (jeder Satz geprüft, nur bekannte Befunde) und die nachgerechnete Ampel ebenfalls grün ergibt. Alles Unklare = rot.
 - Sonderprüfungen (Zahlen, Namen/Kürzel, 20-Wort-Plagiat, Injection) laufen immer, auch nach Grün.
 - KI3: Veröffentlicht wird nur eine eindeutige, vollständige „freigabe“ (R1–R6). „stopp“ oder Unklares → rejected, endgültig. „nachbesserung“ → alle Ersatzformulierungen müssen wörtlich greifen, danach genau EINE Nachprüfung (KI2 + Sonderprüfung + KI3); jedes Nichtbestehen → rejected, keine weitere Schleife.
-- Fortsetzung bei Abbruch: Teaser und Entwürfe liegen im Actions-Cache. Ein erneuter Lauf überspringt Erledigtes und wiederholt nur technische Fehler; inhaltliche Ablehnungen sind endgültig.
+- Eigener LLM-Tageszähler: Jede Anfrage zählt (429 separat). Ab `KNALL_TAGESLIMIT_ANFRAGEN` (Default 50) wird nicht mehr angefragt; neue Artikel starten nur, wenn noch mind. 8 Anfragen übrig sind. Die Tageswerte stehen dauerhaft in `stats.json`, `_kontingent` zeigt die letzten 28 Tage (Schnitt, Maximum, Tage am Limit, 429-Anteil).
+- Fortsetzung bei Abbruch: Teaser, Volltexte und Entwürfe liegen **verschlüsselt** im Actions-Cache (Schlüssel abgeleitet aus `OPENROUTER_API_KEY`, den Fork-PRs nie bekommen). Ein erneuter Lauf überspringt Erledigtes und wiederholt nur technische Fehler; inhaltliche Ablehnungen sind endgültig.
 - Ein Datum pro Lauf (`KNALL_DAY`), auch über Mitternacht.
 - Offene Entwürfe von gestern werden in jeder Stufe vor den heutigen fertig gemacht und mit heutigem Datum veröffentlicht (`entstanden:` im Frontmatter). Was älter als gestern und noch offen ist, wird als „abgelaufen“ vermerkt und aufgeräumt.
 - Weitere Läufe am selben Tag: Ist von heute nichts mehr offen, wählt KI0 neue Themen aus noch unbenutzten Teasern (ohne Wiederholung der Themen von gestern/heute), bis max. 6 Artikel pro Tag (`KNALL_MAX_ARTIKEL_PRO_TAG`).
@@ -35,10 +37,11 @@ Automatisierte Boulevard-Pipeline: links, arbeitnehmerfreundlich, ökologisch, a
 ├── .github/workflows/     daily.yml (Pipeline), deploy-and-mirror.yml (Deploy-Server + Mirror, nur bei manuellen Pushes)
 ├── prompts/               ki0.txt, ki1.txt, ki2.txt, ki3.txt
 ├── scripts/               collect.py, score.py, ki_client.py, regex_gate.py,
-│                          special_checks.py, router.py, stats.py, publish.py
+│                          special_checks.py, router.py, stats.py, publish.py, fulltext.py
 ├── config/feeds.yml       Alle Feed-URLs, Bewertungen, Ressort-Zuordnung
-├── sources/               Teaser des Tages (nur im privaten Actions-Cache, nicht committet)
-├── drafts/                Entwürfe + Prüfprotokolle (nur im privaten Actions-Cache, nicht committet)
+├── sources/               Teaser + Volltexte des Tages (nur verschlüsselt im Actions-Cache, nicht committet)
+├── drafts/                Entwürfe, Prüfprotokolle, Tageszähler (nur verschlüsselt im Actions-Cache)
+├── tests/                 Tests der maschinellen Prüfungen (laufen vor jedem Lauf)
 ├── published/             Freigegebene Artikel (Markdown + Metadaten)
 ├── rejected/              Ablehnungs-Befunde OHNE Artikeltext (Gründe, Ampeln, Prüfposten)
 ├── site/                  GitHub-Pages-Skeleton
@@ -50,9 +53,14 @@ Automatisierte Boulevard-Pipeline: links, arbeitnehmerfreundlich, ökologisch, a
 Benötigte GitHub-Secrets:
 - `OPENROUTER_API_KEY` (oder Äquivalent) — für KI0–KI3
 
-Optional:
-- `KI_MODEL_SMALL`, `KI_MODEL_LARGE`, `KI_FALLBACK_MODELS` (kommagetrennt) — nur `:free`-Modelle, Default siehe scripts/ki_client.py
+Optional (Actions-Variablen):
+- `KI_MODEL_SMALL`, `KI_MODEL_LARGE`, `KI_MODEL_CHECK` (Prüferin KI2/KI3), `KI_FALLBACK_MODELS` (kommagetrennt) — nur `:free`-Modelle, Default siehe scripts/ki_client.py
+- `KNALL_TAGESLIMIT_ANFRAGEN` — eigener Tageszähler, Default 50
+
+Einmalig in den Repo-Einstellungen: **Settings → Pages → Source: „GitHub Actions“** (sonst schlägt der Pages-Job fehl).
+
+Abhängigkeiten sind in `requirements.txt` fest gepinnt, Actions auf Commit-SHAs.
 
 ## Transparenz
 
-Das komplette Repo ist offen: Prompts, Quellen, Entwürfe, Ablehnungen. Jede Änderung am Regelwerk ist ein Git-Commit. Rote Artikel mit Befund im `rejected/`-Verzeichnis — Fehler werden nicht versteckt.
+Das komplette Repo ist offen: Prompts, Code, Ablehnungsbefunde (ohne Text). Volle Entwürfe und Quelltexte bleiben verschlüsselt im Cache. Jede Änderung am Regelwerk ist ein Git-Commit. Rote Artikel mit Befund im `rejected/`-Verzeichnis — Fehler werden nicht versteckt.

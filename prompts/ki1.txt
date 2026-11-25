@@ -23,7 +23,7 @@ STRUKTUR:
 - Dann: Was passiert ist, wer es sagt, was es für die Betroffenen bedeutet.
 - Letzter Satz: der bleibende Schaden oder die nächste Drohung, wenn die Quelle sie hergibt.
 - Länge: 150 bis 250 Wörter. Ein Boulevard-Text ist zu Ende, bevor er langweilig wird.
-- Am Ende, abgesetzt: „Gefunden bei: [Quellenname].“
+- KEINE Quellenzeile, keine Links, kein „Gefunden bei“ — die Originalartikel werden automatisch unter dem Text verlinkt. Willst du ein Medium im Text nennen, dann nur mit dem Namen aus der Zeile „Medium:“ der Quelle.
 
 UNSICHERHEIT: Wenn dir für einen Satz die Grundlage in den Quellen fehlt, lass den Satz weg. Fehlt die Grundlage für den halben Artikel, schreibe nur über das, was gedeckt ist. Länge ist kein Ziel.
 

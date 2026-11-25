@@ -1,33 +1,40 @@
 # Knall-Feedliste v1
 # Alle URLs werden beim ersten Lauf verifiziert. Google-News-Spiegelfeeds
-# werden für Blätter ohne nativen RSS genutzt.
+# werden für Blätter ohne nativen RSS genutzt — fulltext.py löst deren Links
+# zur Original-URL auf; geschrieben wird nur aus Originalartikeln.
+# name: = Name des Mediums unter dem Artikel (Spiegel: kommt aus dem Feed).
 
 definitions:
   # ---------- Linke Presse ----------
   taz_gesamt:
     type: nativ
+    name: "taz"
     url: https://taz.de/!p4608;rss/
     ressort: all
   taz_wirtschaft:
     type: nativ
+    name: "taz"
     url_pattern: "https://taz.de/Wirtschaft/!p{id};rss/"
     note: p-ID beim ersten Lauf verifizieren
     aktiv: false   # erst aktivieren, wenn url mit echter p-ID eingetragen ist
     ressort: kohle
   taz_gesellschaft:
     type: nativ
+    name: "taz"
     url_pattern: "https://taz.de/Gesellschaft/!p{id};rss/"
     note: p-ID beim ersten Lauf verifizieren
     aktiv: false   # erst aktivieren, wenn url mit echter p-ID eingetragen ist
     ressort: alle-gleich
   taz_gesundheit:
     type: nativ
+    name: "taz"
     url_pattern: "https://taz.de/Recht/!p{id};rss/"
     note: p-ID beim ersten Lauf verifizieren
     aktiv: false   # erst aktivieren, wenn url mit echter p-ID eingetragen ist
     ressort: pflege
   taz_oeko:
     type: nativ
+    name: "taz"
     url_pattern: "https://taz.de/Umwelt/!p{id};rss/"
     note: p-ID beim ersten Lauf verifizieren
     aktiv: false   # erst aktivieren, wenn url mit echter p-ID eingetragen ist
@@ -35,16 +42,19 @@ definitions:
 
   nd_gesamt:
     type: nativ
+    name: "nd"
     url: https://nd-aktuell.de/rss/aktuell.php
     ressort: all
 
   # ---------- Überregionale ----------
   tagesschau:
     type: nativ
+    name: "tagesschau.de"
     url: https://www.tagesschau.de/infoservices/alle-meldungen-100~rss2.xml
     ressort: all
   deutschlandfunk:
     type: nativ
+    name: "Deutschlandfunk"
     url: https://www.deutschlandfunk.de/nachrichten-100.rss
     note: war eine HTML-Seite statt Feed; neue URL im naechsten Lauf-Log pruefen
     ressort: all
@@ -52,6 +62,7 @@ definitions:
   # ---------- Behörden / Institutionen ----------
   destatis:
     type: nativ
+    name: "Statistisches Bundesamt"
     url: https://www.destatis.de/SiteGlobal/RSS/Meldungen.rdf
     ressort: woche
   verdi_pm:
@@ -104,6 +115,7 @@ definitions:
     ressort: lokal
   lvz:
     type: nativ
+    name: "Leipziger Volkszeitung"
     url: https://www.lvz.de/arc/outboundfeeds/rss/
     region: sachsen
     ressort: lokal
