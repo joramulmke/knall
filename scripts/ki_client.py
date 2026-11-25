@@ -165,6 +165,11 @@ def groq_rest():
     return max(0, GROQ_TAGESLIMIT - zaehler()["groq_anfragen"])
 
 
+def budget_verfuegbar():
+    """Anfragen, die heute insgesamt noch gehen (OpenRouter + Groq, falls Key)."""
+    return budget_rest() + (groq_rest() if os.environ.get("GROQ_API_KEY") else 0)
+
+
 def resolve_model(model):
     if model == "CHECK":
         default = DEFAULT_CHECK_GROQ if os.environ.get("GROQ_API_KEY") else DEFAULT_CHECK
@@ -354,7 +359,10 @@ def llm_call(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.3)
     chain = model_chain(primary, backup)
     last_error = None
     waited = 0
+    openrouter_aus = None        # OpenRouter-Tageslimit erreicht → nur noch Groq
     for chain_model in chain:
+        if openrouter_aus and not ist_groq(chain_model):
+            continue
         attempt = 0
         while True:
             attempt += 1
@@ -384,7 +392,12 @@ def llm_call(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.3)
                 if exc.code == 429:
                     print(f"  429 bei {chain_model} (Versuch {attempt}): {body}")
                     if _is_daily_quota(body):
-                        raise QuotaExhausted(f"Free-Tier-Tageslimit erreicht: {body}") from exc
+                        q = QuotaExhausted(f"Free-Tier-Tageslimit erreicht: {body}")
+                        if not any(ist_groq(m) for m in chain[chain.index(chain_model) + 1:]):
+                            raise q from exc
+                        print("  OpenRouter-Tageslimit — weiter nur mit Groq")
+                        openrouter_aus = q
+                        break
                     last_error = RuntimeError(f"HTTP 429 fuer {chain_model!r}: {body}")
                     plan = BACKOFF_429
                     if attempt > len(plan):
@@ -407,8 +420,14 @@ def llm_call(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.3)
                 print(f"  leere Antwort bei {chain_model} (Versuch {attempt}): {exc}")
                 last_error = exc
                 plan = BACKOFF_LEER
-            except QuotaExhausted:
-                raise
+            except QuotaExhausted as exc:
+                # OpenRouter ist für heute durch. Gibt es noch Groq in der Kette,
+                # dort weitermachen; sonst Abbruch wie bisher.
+                if not any(ist_groq(m) for m in chain[chain.index(chain_model) + 1:]):
+                    raise
+                print(f"  {exc} — weiter nur mit Groq")
+                openrouter_aus = exc
+                break
             except Exception as exc:
                 _zaehle("fehler", groq=ist_groq(chain_model))
                 print(f"  Netzwerkfehler bei {chain_model} (Versuch {attempt}): {exc}")
@@ -424,6 +443,8 @@ def llm_call(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.3)
                 time.sleep(wait)
             waited += wait
         print(f"  {chain_model} fehlgeschlagen — naechstes Modell")
+    if openrouter_aus:
+        raise QuotaExhausted(f"OpenRouter-Tageslimit erreicht, Groq lieferte nicht: {last_error}")
     raise RuntimeError(f"LLM-Aufruf endgueltig gescheitert (alle Modelle probiert): {last_error}")
 
 
@@ -501,8 +522,8 @@ def curate():
             out.write_text("{\"cluster\": []}", encoding="utf-8")
         return
 
-    if budget_rest() < MIN_BUDGET_NEUER_ARTIKEL:
-        print(f"KI0 uebersprungen: nur noch {budget_rest()} Anfragen im Tageskontingent "
+    if budget_verfuegbar() < MIN_BUDGET_NEUER_ARTIKEL:
+        print(f"KI0 uebersprungen: nur noch {budget_verfuegbar()} Anfragen im Tageskontingent "
               f"(mind. {MIN_BUDGET_NEUER_ARTIKEL} fuer einen neuen Artikel noetig)")
         return
 

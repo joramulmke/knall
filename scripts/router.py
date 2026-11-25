@@ -266,7 +266,7 @@ def regex_runden(text, base_prompt, quellen, draft=None, stufe="regex"):
 def write_stage():
     """KI1 schreibt pro Cluster; danach Regex-Gate mit bis zu 2 billigen Korrekturrunden.
     Bereits geschriebene/entschiedene Entwürfe werden übersprungen."""
-    from ki_client import llm_call, QuotaExhausted, budget_rest, MIN_BUDGET_NEUER_ARTIKEL
+    from ki_client import llm_call, QuotaExhausted, budget_verfuegbar, MIN_BUDGET_NEUER_ARTIKEL
     from common import work_days
     ki1_tpl = (ROOT / "prompts" / "ki1.txt").read_text(encoding="utf-8")
     jobs = []
@@ -282,10 +282,10 @@ def write_stage():
         if draft and not needs(draft, None, "write"):
             print(f"{name}: bereits '{draft.get('stage')}' — uebersprungen")
             continue
-        if budget_rest() < MIN_BUDGET_NEUER_ARTIKEL:
+        if budget_verfuegbar() < MIN_BUDGET_NEUER_ARTIKEL:
             # Nicht anfangen, was das Tageskontingent nicht mehr fertig bekommt.
             # Kein Fehler-Befund: der Cluster bleibt offen für den nächsten Lauf.
-            print(f"{name}: nur noch {budget_rest()} Anfragen im Tageskontingent — "
+            print(f"{name}: nur noch {budget_verfuegbar()} Anfragen im Tageskontingent — "
                   f"neue Artikel erst im naechsten Lauf")
             break
         draft.update({"tag": today, "cluster_idx": idx, "cluster": cluster})

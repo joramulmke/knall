@@ -208,3 +208,40 @@ def test_ki1_kette_gemma_dann_groq(monkeypatch, tmp_path):
     monkeypatch.setattr(ki, "_post_once", post)
     assert ki.llm_call("p", model="LARGE") == "text"
     assert aufrufe == [ki.DEFAULT_LARGE, ki.DEFAULT_LARGE, "groq:openai/gpt-oss-120b"]
+
+
+def test_openrouter_tageslimit_weiter_mit_groq(monkeypatch, tmp_path):
+    import io
+    import urllib.error
+    ki, _, _ = _ki_setup(monkeypatch, tmp_path)
+    monkeypatch.setenv("GROQ_API_KEY", "g")
+    monkeypatch.delenv("KI_MODEL_LARGE", raising=False)
+    monkeypatch.setattr(ki, "available_groq_models", lambda: None)
+    aufrufe = []
+
+    def post(model, *a):
+        aufrufe.append(model)
+        if not ki.ist_groq(model):
+            raise urllib.error.HTTPError("u", 429, "q", {}, io.BytesIO(b"free-models-per-day exceeded"))
+        return "text"
+    monkeypatch.setattr(ki, "_post_once", post)
+    assert ki.llm_call("p", model="LARGE") == "text"
+    assert aufrufe == [ki.DEFAULT_LARGE, "groq:openai/gpt-oss-120b"]
+
+
+def test_eigener_zaehler_voll_aber_groq_frei(monkeypatch, tmp_path):
+    ki, _, _ = _ki_setup(monkeypatch, tmp_path)
+    monkeypatch.setenv("GROQ_API_KEY", "g")
+    monkeypatch.setattr(ki, "available_groq_models", lambda: None)
+    monkeypatch.setattr(ki, "budget_rest", lambda: 0)
+    monkeypatch.setattr(ki, "_senden", lambda url, key, payload, model: "text")
+    assert ki.budget_verfuegbar() >= ki.MIN_BUDGET_NEUER_ARTIKEL
+    assert ki.llm_call("p", model="LARGE") == "text"
+
+
+def test_ohne_groq_bleibt_tageslimit_abbruch(monkeypatch, tmp_path):
+    ki, _, _ = _ki_setup(monkeypatch, tmp_path)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.setattr(ki, "budget_rest", lambda: 0)
+    with pytest.raises(ki.QuotaExhausted):
+        ki.llm_call("p", model="LARGE")
