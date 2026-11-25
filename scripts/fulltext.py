@@ -32,7 +32,7 @@ import requests
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from safety import clean_text  # noqa: E402
-from common import run_day, zu_alt, alter_tage, MAX_ALTER_TAGE  # noqa: E402
+from common import run_day, zu_alt, alter_tage, MAX_ALTER_TAGE, medium_kurz  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 # Abrufe PRO LAUF. Früher pro Tag gezählt: Nach den ersten Läufen war das
@@ -142,7 +142,7 @@ def volltext(url, session):
     sitename = datum = None
     try:
         meta = trafilatura.extract_metadata(html, default_url=url)
-        sitename = clean_text(getattr(meta, "sitename", None) or "") or None
+        sitename = medium_kurz(clean_text(getattr(meta, "sitename", None) or ""))
         datum = getattr(meta, "date", None) or None    # "YYYY-MM-DD"
     except Exception:
         pass

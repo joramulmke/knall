@@ -159,7 +159,8 @@ def archivieren(today, name, draft):
     try:
         rec = dict(draft)
         try:
-            rec["quellen_text"], _, _ = sources_from_cluster(draft.get("cluster") or {}, draft.get("tag") or today)
+            rec["quellen_text"], _, _ = sources_from_cluster(draft.get("cluster") or {}, draft.get("tag") or today,
+                                                             alt_verwerfen=False)
         except Exception as exc:  # Quellen fehlen (z. B. schon aufgeräumt)
             rec["quellen_text"] = f"(nicht verfuegbar: {exc})"
         rec["archiviert_am"] = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
@@ -199,12 +200,14 @@ def clear_fail(today, name, draft):
         rp.unlink()
 
 
-def sources_from_cluster(cluster, today):
+def sources_from_cluster(cluster, today, alt_verwerfen=True):
     """Liest die Quelldateien eines Clusters als bereinigten, klar begrenzten
     Quelltext. Nur Originalartikel (Volltext + Original-URL); Teaser ohne
-    Original und Quellen mit Prompt-Injection-Mustern werden verworfen.
+    Original, zu alte Quellen (KNALL_MAX_ALTER_TAGE) und Quellen mit
+    Prompt-Injection-Mustern werden verworfen.
     Rückgabe: (quelltext, verworfene_ids, quellen_meta)."""
     from safety import clean_text, injection_hits
+    from common import zu_alt, MAX_ALTER_TAGE, medium_kurz
     src_dir = ROOT / "sources" / today
     texts, dropped, meta = [], [], []
     for n, aid in enumerate(cluster.get("artikel_ids", []), start=1):
@@ -217,9 +220,13 @@ def sources_from_cluster(cluster, today):
             print(f"  Quelle {aid} verworfen: kein Originalartikel (nur Teaser)")
             dropped.append(aid)
             continue
+        if alt_verwerfen and zu_alt(item, today):
+            print(f"  Quelle {aid} verworfen: aelter als {MAX_ALTER_TAGE} Tage")
+            dropped.append(aid)
+            continue
         title = clean_text(item.get("title", ""))
         body = clean_text(item.get("volltext", ""))
-        medium = clean_text(item.get("medium") or item.get("source_key", ""))
+        medium = medium_kurz(clean_text(item.get("medium") or item.get("source_key", "")))
         if injection_hits(title + "\n" + body):
             print(f"  Quelle {aid} verworfen: Anweisungs-Text erkannt (Prompt-Injection?)")
             dropped.append(aid)
@@ -361,6 +368,10 @@ def evaluate_stage():
         try:
             cluster = draft["cluster"]
             quellen, _, _ = sources_from_cluster(cluster, today)
+            if not quellen:
+                reject(today, name, draft, "keine aktuellen Quellen mehr (zu alt oder verworfen)")
+                write_json(dpath, draft)
+                continue
             ki1_base = fill(ki1_tpl, QUELLEN=quellen)
             draft.pop("ki2_validierung", None)
             draft.pop("gelb_protokoll", None)
@@ -512,6 +523,10 @@ def legal_stage():
         try:
             cluster = draft["cluster"]
             quellen, _, _ = sources_from_cluster(cluster, today)
+            if not quellen:
+                reject(today, name, draft, "keine aktuellen Quellen mehr (zu alt oder verworfen)")
+                write_json(dpath, draft)
+                continue
             entscheidung, result, gruende = ki3_check(draft["text"], quellen)
             verlauf(draft, "ki3", entscheidung=entscheidung, gruende=gruende, urteil=result)
             draft["ki3_entscheidung"] = result

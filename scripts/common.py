@@ -34,6 +34,18 @@ def run_day():
     return datetime.datetime.now(datetime.timezone.utc).date().isoformat()
 
 
+def medium_kurz(name):
+    """Medienname ohne Slogan: "Haufe. Intelligenz, die bewegt." → "Haufe",
+    "taz | die tageszeitung" → "taz", "MDR – Nachrichten" → "MDR"."""
+    n = str(name or "").strip()
+    for trenner in (" | ", " – ", " — ", " - ", ". ", ": "):
+        if trenner in n:
+            kopf = n.split(trenner, 1)[0].strip()
+            if len(kopf) >= 2:
+                n = kopf
+    return n.rstrip(".").strip() or None
+
+
 MAX_ALTER_TAGE = int(os.environ.get("KNALL_MAX_ALTER_TAGE") or 3)
 
 
@@ -41,7 +53,10 @@ def alter_tage(item, heute=None):
     """Alter einer Meldung in Tagen: Datum aus dem Originalartikel (trafilatura),
     sonst Feed-Datum. None, wenn keins bekannt ist."""
     ref = datetime.date.fromisoformat(heute or run_day())
-    for key in ("datum_original", "published_iso"):
+    # Gerichtsentscheidungen: Die Seite nennt das Entscheidungsdatum (oft Wochen
+    # zurück) — maßgeblich für "neu" ist die Veröffentlichung im Feed.
+    keys = ("published_iso",) if item.get("datum_vom_feed") else ("datum_original", "published_iso")
+    for key in keys:
         roh = str(item.get(key) or "")[:10]
         try:
             return (ref - datetime.date.fromisoformat(roh)).days

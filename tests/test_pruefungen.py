@@ -360,3 +360,39 @@ def test_groq_json_modus_nur_in_llm_json(monkeypatch, tmp_path):
     ki.llm_call("p", model="CHECK")
     assert bodies[0].get("response_format") == {"type": "json_object"}
     assert "response_format" not in bodies[1]
+
+
+def test_gerichtsfeeds_alter_nach_feed_datum():
+    from common import zu_alt
+    heute = "2026-11-25"
+    urteil = {"datum_original": "2026-09-01", "published_iso": "2026-11-24T10:00:00+00:00", "datum_vom_feed": True}
+    assert not zu_alt(urteil, heute)
+    urteil["datum_vom_feed"] = False
+    assert zu_alt(urteil, heute)
+
+
+def test_medienname_ohne_slogan():
+    from common import medium_kurz
+    assert medium_kurz("Haufe. Intelligenz, die bewegt.") == "Haufe"
+    assert medium_kurz("taz | die tageszeitung") == "taz"
+    assert medium_kurz("rbb24") == "rbb24"
+    assert medium_kurz("Deutscher Bundestag") == "Deutscher Bundestag"
+    assert medium_kurz("test.de") == "test.de"
+
+
+def test_alte_quelle_wird_in_den_ki_stufen_verworfen(tmp_path, monkeypatch):
+    import json as _json
+    import router
+    monkeypatch.setattr(router, "ROOT", tmp_path)
+    d = tmp_path / "sources" / "2026-11-25"
+    d.mkdir(parents=True)
+    alt = {"title": "BGH: Mieter", "volltext": "x" * 900, "url_original": "https://e.de/a",
+           "medium": "Haufe. Intelligenz, die bewegt.", "datum_original": "2016-03-01"}
+    neu = dict(alt, url_original="https://e.de/b", datum_original="2026-11-24")
+    (d / "a.json").write_text(_json.dumps(alt))
+    (d / "b.json").write_text(_json.dumps(neu))
+    text, dropped, meta = router.sources_from_cluster({"artikel_ids": ["a", "b"]}, "2026-11-25")
+    assert dropped == ["a"] and [m["id"] for m in meta] == ["b"]
+    assert meta[0]["medium"] == "Haufe"
+    text, dropped, meta = router.sources_from_cluster({"artikel_ids": ["a"]}, "2026-11-25", alt_verwerfen=False)
+    assert dropped == []
