@@ -5,7 +5,7 @@
     "ki3_stopp": 1,
     "fehler": 0,
     "abgelaufen": 0,
-    "published": 1,
+    "published": 0,
     "gruende": [
       "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
@@ -60,6 +60,16 @@
     "im_kontingent": false
   },
   "_volltext": {
+    "bgh_entscheidungen": {
+      "ok": 0,
+      "blockiert": 1,
+      "tage": 1
+    },
+    "bgh_pressemitteilungen": {
+      "ok": 1,
+      "blockiert": 0,
+      "tage": 1
+    },
     "bmas": {
       "ok": 0,
       "blockiert": 0,
@@ -68,6 +78,56 @@
     "bmg": {
       "ok": 0,
       "blockiert": 1,
+      "tage": 1
+    },
+    "bt_arbeit_soziales": {
+      "ok": 0,
+      "blockiert": 2,
+      "tage": 1
+    },
+    "bt_familie_senioren": {
+      "ok": 0,
+      "blockiert": 2,
+      "tage": 1
+    },
+    "bt_gesundheit": {
+      "ok": 3,
+      "blockiert": 1,
+      "tage": 1
+    },
+    "bt_haushalt": {
+      "ok": 1,
+      "blockiert": 1,
+      "tage": 1
+    },
+    "bt_hib": {
+      "ok": 1,
+      "blockiert": 2,
+      "tage": 1
+    },
+    "bt_menschenrechte": {
+      "ok": 0,
+      "blockiert": 0,
+      "tage": 1
+    },
+    "bt_petitionen": {
+      "ok": 0,
+      "blockiert": 0,
+      "tage": 1
+    },
+    "bt_umwelt_klima": {
+      "ok": 0,
+      "blockiert": 1,
+      "tage": 1
+    },
+    "bt_wirtschaft_energie": {
+      "ok": 2,
+      "blockiert": 1,
+      "tage": 1
+    },
+    "bt_wohnen": {
+      "ok": 0,
+      "blockiert": 0,
       "tage": 1
     },
     "bundesagentur_arbeit": {
@@ -90,9 +150,19 @@
       "blockiert": 1,
       "tage": 1
     },
+    "dlf_politik": {
+      "ok": 0,
+      "blockiert": 2,
+      "tage": 1
+    },
     "freie_presse": {
       "ok": 2,
       "blockiert": 2,
+      "tage": 1
+    },
+    "junge_welt": {
+      "ok": 0,
+      "blockiert": 0,
       "tage": 1
     },
     "l_iz": {
@@ -135,6 +205,11 @@
       "blockiert": 0,
       "tage": 1
     },
+    "netzpolitik": {
+      "ok": 6,
+      "blockiert": 0,
+      "tage": 1
+    },
     "nordkurier": {
       "ok": 6,
       "blockiert": 0,
@@ -153,6 +228,21 @@
     "saechsische": {
       "ok": 0,
       "blockiert": 4,
+      "tage": 1
+    },
+    "schwulissimo": {
+      "ok": 6,
+      "blockiert": 0,
+      "tage": 1
+    },
+    "sz_politik": {
+      "ok": 4,
+      "blockiert": 0,
+      "tage": 1
+    },
+    "t_online": {
+      "ok": 1,
+      "blockiert": 0,
       "tage": 1
     },
     "tagesschau": {
