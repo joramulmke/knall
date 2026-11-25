@@ -93,3 +93,53 @@ def test_volltext_gedaechtnis():
     assert blockade("robots.txt verbietet Abruf") and not blockade("ok") and not blockade("HTTP 500")
     ged = {"gut": {"2026-11-25": {"ok": 6, "fehl": 0}}, "blocker": {"2026-11-25": {"ok": 0, "fehl": 7}}}
     assert quote(ged, "gut") > quote(ged, "neu") > quote(ged, "blocker")
+
+
+# --- Früherer Modellwechsel bei 429 -----------------------------------------
+
+def _ki_setup(monkeypatch, tmp_path):
+    import io
+    import urllib.error
+    import ki_client
+    monkeypatch.setattr(ki_client, "_zaehler_pfad", lambda: tmp_path / "anfragen.json")
+    monkeypatch.setattr(ki_client, "available_free_models", lambda: None)
+    monkeypatch.setattr(ki_client.time, "sleep", lambda s: schlaf.append(s))
+    monkeypatch.setenv("OPENROUTER_API_KEY", "x")
+    monkeypatch.setenv("KI_FALLBACK_MODELS", "b/zwei:free,c/drei:free")
+    schlaf = []
+
+    def err429(model):
+        return urllib.error.HTTPError("u", 429, "rate", {}, io.BytesIO(b"rate-limited upstream"))
+    return ki_client, schlaf, err429
+
+
+def test_429_wechselt_nach_einem_kurzen_versuch(monkeypatch, tmp_path):
+    ki, schlaf, err429 = _ki_setup(monkeypatch, tmp_path)
+    aufrufe = []
+
+    def post(model, *a):
+        aufrufe.append(model)
+        if model == "a/eins:free":
+            raise err429(model)
+        return "ok"
+    monkeypatch.setattr(ki, "_post_once", post)
+    assert ki.llm_call("p", model="a/eins:free") == "ok"
+    assert aufrufe == ["a/eins:free", "a/eins:free", "b/zwei:free"]
+    assert schlaf == [15]
+    # gesperrtes Modell steht beim nächsten Aufruf hinten
+    assert ki.model_chain("a/eins:free")[0] == "b/zwei:free"
+
+
+def test_leere_antwort_sofort_wiederholen(monkeypatch, tmp_path):
+    ki, schlaf, _ = _ki_setup(monkeypatch, tmp_path)
+    aufrufe = []
+
+    def post(model, *a):
+        aufrufe.append(model)
+        if model == "a/eins:free":
+            raise ki.EmptyResponse("leer")
+        return "ok"
+    monkeypatch.setattr(ki, "_post_once", post)
+    assert ki.llm_call("p", model="a/eins:free") == "ok"
+    assert aufrufe == ["a/eins:free", "a/eins:free", "b/zwei:free"]
+    assert schlaf == []

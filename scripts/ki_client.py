@@ -21,6 +21,14 @@ v6:
 
 Modell-Auflösung: Env-Variablen KI_MODEL_SMALL / KI_MODEL_LARGE /
 KI_MODEL_CHECK / KI_FALLBACK_MODELS (kommagetrennt), alle optional.
+
+v7 (früherer Modellwechsel):
+- 429 (Minutenlimit/überlastet): nur EIN kurzer Wiederholversuch, dann sofort
+  das nächste Modell statt 20+60+120 s zu warten.
+- Leere Antwort: ein Wiederholversuch ohne Wartezeit, dann nächstes Modell.
+- Ein Modell mit 429 wird für KNALL_MODELL_SPERRE_S (Default 600 s) im
+  Tageszähler gesperrt und in allen folgenden Aufrufen — auch in späteren
+  Pipeline-Stufen — ans Ende der Kette gestellt (nicht entfernt).
 """
 import os
 import json
@@ -45,7 +53,10 @@ DEFAULT_FALLBACK_CHAIN = [
     "inclusionai/ling-3.2-flash:free",
 ]
 
-BACKOFF = [20, 60, 120]          # Wartezeit NACH Versuch 1, 2 (und 3 entfällt)
+BACKOFF = [20, 60, 120]          # Netzwerk-/Serverfehler: Wartezeit nach Versuch 1, 2, 3
+BACKOFF_429 = [15]               # 429: ein kurzer Wiederholversuch, dann nächstes Modell
+BACKOFF_LEER = [0]               # leere Antwort: einmal sofort wiederholen
+MODELL_SPERRE_S = int(os.environ.get("KNALL_MODELL_SPERRE_S") or 600)
 CALL_WAIT_BUDGET_S = 600         # max. Summe aller Wartezeiten pro llm_call
 DEFAULT_MAX_TOKENS = 4000        # Free-Modelle: Tokens kosten nichts, Reasoning braucht Platz
 # Ein Artikel braucht realistisch ~6, im ungünstigsten Fall ~12 Anfragen.
@@ -100,6 +111,19 @@ def _zaehle(art, model=None):
     f = _zaehler_pfad()
     f.parent.mkdir(parents=True, exist_ok=True)
     f.write_text(json.dumps(z, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def sperre_modell(model, sekunden=None):
+    """Modell nach 429 für eine Weile hinten anstellen (gilt über Stufen hinweg)."""
+    z = zaehler()
+    z.setdefault("gesperrt_bis", {})[model] = int(time.time()) + (sekunden or MODELL_SPERRE_S)
+    f = _zaehler_pfad()
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(json.dumps(z, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def gesperrt(model):
+    return zaehler().get("gesperrt_bis", {}).get(model, 0) > time.time()
 
 
 def budget_rest():
@@ -157,6 +181,10 @@ def model_chain(primary, backup=None):
         chain = [m for m in chain if m in avail]
     if not chain:
         raise RuntimeError("Keine gueltigen :free-Modelle in der Kette")
+    hinten = [m for m in chain if gesperrt(m)]
+    if hinten and len(hinten) < len(chain):
+        print(f"  zuletzt 429, ans Ende gestellt: {', '.join(hinten)}")
+        chain = [m for m in chain if m not in hinten] + hinten
     return chain
 
 
@@ -208,9 +236,10 @@ def llm_call(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.3)
     last_error = None
     waited = 0
     for chain_model in chain:
-        for attempt in range(1, len(BACKOFF) + 2):
-            wait = BACKOFF[attempt - 1] if attempt <= len(BACKOFF) else 0
-            is_last = attempt == len(BACKOFF) + 1
+        attempt = 0
+        while True:
+            attempt += 1
+            plan = BACKOFF
             try:
                 out = _post_once(chain_model, prompt, max_tokens, temperature)
                 _zaehle("ok")
@@ -229,6 +258,9 @@ def llm_call(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.3)
                     if _is_daily_quota(body):
                         raise QuotaExhausted(f"Free-Tier-Tageslimit erreicht: {body}") from exc
                     last_error = RuntimeError(f"HTTP 429 fuer {chain_model!r}: {body}")
+                    plan = BACKOFF_429
+                    if attempt > len(plan):
+                        sperre_modell(chain_model)
                 elif exc.code in (401, 402, 403):
                     raise RuntimeError(f"OpenRouter HTTP {exc.code} (Auth/Konto): {body}") from exc
                 elif exc.code in (400, 404, 410, 422):
@@ -242,19 +274,22 @@ def llm_call(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.3)
                 _zaehle("leer")
                 print(f"  leere Antwort bei {chain_model} (Versuch {attempt})")
                 last_error = exc
+                plan = BACKOFF_LEER
             except QuotaExhausted:
                 raise
             except Exception as exc:
                 _zaehle("fehler")
                 print(f"  Netzwerkfehler bei {chain_model} (Versuch {attempt}): {exc}")
                 last_error = RuntimeError(f"Netzwerkfehler bei {chain_model!r}: {exc}")
-                wait = min(wait, 10)
-            if is_last:
+                plan = [min(w, 10) for w in BACKOFF]
+            if attempt > len(plan):
                 break
+            wait = plan[attempt - 1]
             if waited + wait > CALL_WAIT_BUDGET_S:
                 print("  Warte-Budget fuer diesen Aufruf aufgebraucht")
                 raise RuntimeError(f"LLM-Aufruf: Warte-Budget erschoepft. Letzter Fehler: {last_error}")
-            time.sleep(wait)
+            if wait:
+                time.sleep(wait)
             waited += wait
         print(f"  {chain_model} fehlgeschlagen — naechstes Modell")
     raise RuntimeError(f"LLM-Aufruf endgueltig gescheitert (alle Modelle probiert): {last_error}")
