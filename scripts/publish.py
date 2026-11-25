@@ -34,19 +34,14 @@ def unique_path(base):
 
 def main():
     today = datetime.date.today().isoformat()
-    state_path = ROOT / "drafts" / "_pipeline_state.json"
-    if not state_path.exists():
-        print("kein Pipeline-State — nichts zu veroeffentlichen")
-        return
-    state = json.loads(state_path.read_text(encoding="utf-8"))
     (ROOT / "published").mkdir(exist_ok=True)
     count = 0
-    for entry in state.get("artikel", []):
-        if entry.get("stage") != "published_ready":
-            continue
-        draft = json.loads((ROOT / entry["draft_path"]).read_text(encoding="utf-8"))
+    for dpath in sorted((ROOT / "drafts").glob(f"{today}-draft-*.json")):
+        draft = json.loads(dpath.read_text(encoding="utf-8"))
+        if draft.get("stage") != "freigegeben":
+            continue  # u. a. "veroeffentlicht" → nie doppelt
         if draft.get("ampel_final") != "gruen" or draft.get("freigabe_final") is not True:
-            print(f"::warning::{entry['draft_path']} hat keine vollstaendige Freigabe — NICHT veroeffentlicht")
+            print(f"::warning::{dpath.name} hat keine vollstaendige Freigabe — NICHT veroeffentlicht")
             continue
         cluster = draft.get("cluster", {})
         out = unique_path(ROOT / "published" / f"{today}-{slugify(cluster.get('thema'))}.md")
@@ -71,6 +66,9 @@ def main():
             f"_Automatisiert mit KI erstellt und maschinell geprüft (KI-Faktenprüfung, Rechtsprüfung, Zahlen-/Namens-/Plagiatscheck)._\n",
             encoding="utf-8",
         )
+        draft["stage"] = "veroeffentlicht"
+        draft["published_file"] = out.name
+        dpath.write_text(json.dumps(draft, ensure_ascii=False, indent=2), encoding="utf-8")
         count += 1
         print(f"veroeffentlicht: {out.name}")
     print(f"publish fertig: {count} Artikel")

@@ -12,10 +12,15 @@ Kernregeln (keine menschliche Freigabe → fail-closed):
   "nachbesserung" → Ersatzformulierungen müssen ALLE greifen; danach
   EINE erneute Prüfung (KI2 + Sonderprüfungen + KI3). Nur wenn alle drei
   bestehen → veröffentlichen, sonst rejected. Kein zweiter Durchlauf.
-- Ein Fehler in einem Cluster stoppt nicht die anderen.
 
-Stages: write_stage, evaluate_stage, legal_stage
-Status über drafts/_pipeline_state.json.
+Fortsetzbar (Resume): Jeder Entwurf drafts/<tag>-draft-<n>.json trägt
+seinen Stand im Feld "stage":
+  geschrieben → gruen → freigegeben → veroeffentlicht   (Erfolgsweg)
+  abgelehnt                                              (endgültig)
+  fehler (+ "fehler_in": write|evaluate|legal)            (wird wiederholt)
+Ein erneuter Lauf am selben Tag (drafts/ + sources/ kommen aus dem
+Actions-Cache) überspringt Erledigtes und wiederholt nur Fehler/Offenes.
+Inhaltliche Ablehnungen werden NIE wiederholt.
 """
 import json
 import re
@@ -27,25 +32,30 @@ import traceback
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DRAFTS = ROOT / "drafts"
 REJECTED = ROOT / "rejected"
-STATE_FILE = DRAFTS / "_pipeline_state.json"
 MAX_GELB_ROUNDS = 2
 MAX_REGEX_ROUNDS = 2
-
-
-def load_state():
-    if STATE_FILE.exists():
-        return json.loads(STATE_FILE.read_text(encoding="utf-8"))
-    return {"artikel": []}
-
-
-def save_state(state):
-    DRAFTS.mkdir(exist_ok=True)
-    STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def write_json(path, obj):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def draft_path(today, idx):
+    return DRAFTS / f"{today}-draft-{idx}.json"
+
+
+def load_drafts(today):
+    out = []
+    for p in sorted(DRAFTS.glob(f"{today}-draft-*.json")):
+        out.append((p, json.loads(p.read_text(encoding="utf-8"))))
+    return out
+
+
+def needs(draft, stage, fehler_in):
+    """Soll diese Stufe den Entwurf (erneut) bearbeiten?"""
+    st = draft.get("stage")
+    return st == stage or (st == "fehler" and draft.get("fehler_in") == fehler_in)
 
 
 def redact(draft):
@@ -116,12 +126,37 @@ def redact(draft):
     }
 
 
+def reject_path(today, name):
+    fname = name if name.startswith(today) else f"{today}-{name}"
+    return REJECTED / f"{fname}.json"
+
+
 def reject(today, name, draft, grund):
+    """Inhaltliche Ablehnung — endgültig."""
+    draft["stage"] = "abgelehnt"
     draft["ampel_final"] = "rot"
     draft.setdefault("ablehnungsgruende", []).append(grund)
-    fname = name if name.startswith(today) else f"{today}-{name}"
-    write_json(REJECTED / f"{fname}.json", redact(draft))
+    write_json(reject_path(today, name), redact(draft))
     print(f"  → rejected: {grund}")
+
+
+def fail(today, name, draft, wo, exc):
+    """Technischer Fehler/Tageslimit — wird beim nächsten Lauf wiederholt.
+    Öffentlicher Befund wird angelegt und bei späterem Erfolg wieder entfernt."""
+    draft["stage"] = "fehler"
+    draft["fehler_in"] = wo
+    draft["abbruch"] = f"{wo}: {exc}"
+    rec = redact(dict(draft, ablehnungsgruende=[f"technischer Fehler in {wo} (wird wiederholt): {exc}"]))
+    write_json(reject_path(today, name), rec)
+    print(f"  → Fehler in {wo}, wird beim naechsten Lauf wiederholt: {exc}")
+
+
+def clear_fail(today, name, draft):
+    draft.pop("fehler_in", None)
+    draft.pop("abbruch", None)
+    rp = reject_path(today, name)
+    if rp.exists():
+        rp.unlink()
 
 
 def sources_from_cluster(cluster, today):
@@ -158,23 +193,28 @@ def fill(template, **kw):
 
 
 def write_stage():
-    """KI1 schreibt pro Cluster; danach Regex-Gate mit bis zu 2 billigen Korrekturrunden."""
+    """KI1 schreibt pro Cluster; danach Regex-Gate mit bis zu 2 billigen Korrekturrunden.
+    Bereits geschriebene/entschiedene Entwürfe werden übersprungen."""
     from ki_client import llm_call, QuotaExhausted
     from regex_gate import check
     today = datetime.date.today().isoformat()
     curation = json.loads((DRAFTS / f"{today}-curation.json").read_text(encoding="utf-8"))
-    state = {"artikel": []}
-    save_state(state)
     ki1_tpl = (ROOT / "prompts" / "ki1.txt").read_text(encoding="utf-8")
     for idx, cluster in enumerate(curation.get("cluster", [])):
-        name = f"draft-{idx}"
-        draft = {"cluster_idx": idx, "cluster": cluster}
+        dpath = draft_path(today, idx)
+        name = dpath.stem
+        draft = json.loads(dpath.read_text(encoding="utf-8")) if dpath.exists() else {}
+        if draft and not needs(draft, None, "write"):
+            print(f"{name}: bereits '{draft.get('stage')}' — uebersprungen")
+            continue
+        draft.update({"cluster_idx": idx, "cluster": cluster})
         try:
             quellen, dropped, meta = sources_from_cluster(cluster, today)
             draft["quellen_verworfen"] = dropped
             draft["quellen_meta"] = meta
             if not quellen:
                 reject(today, name, draft, "keine verwertbaren Quellen")
+                write_json(dpath, draft)
                 continue
             base_prompt = fill(ki1_tpl, QUELLEN=quellen)
             raw = llm_call(base_prompt, model="LARGE").strip()
@@ -190,20 +230,20 @@ def write_stage():
                 raw = llm_call(repair_prompt, model="LARGE").strip()
                 findings = check(raw, quellen)
                 rounds += 1
-            draft.update({"text": raw, "regex_rest_findings": findings, "korrekturrunden_regex": rounds})
-            dpath = DRAFTS / f"{today}-{name}.json"
+            draft.update({"text": raw, "regex_rest_findings": findings, "korrekturrunden_regex": rounds,
+                          "stage": "geschrieben"})
+            clear_fail(today, name, draft)
             write_json(dpath, draft)
-            state["artikel"].append({"draft_path": str(dpath.relative_to(ROOT)), "cluster_idx": idx, "stage": "regex_done"})
-            save_state(state)
         except QuotaExhausted as exc:
-            print(f"::error::Free-Tier-Tageslimit erreicht — restliche Cluster entfallen: {exc}")
+            print(f"::error::Free-Tier-Tageslimit erreicht — restliche Cluster beim naechsten Lauf: {exc}")
+            fail(today, name, draft, "write", "Free-Tier-Tageslimit")
+            write_json(dpath, draft)
             break
         except Exception as exc:
             traceback.print_exc()
             print(f"::error::Cluster {idx} in write_stage fehlgeschlagen: {exc}")
-            draft["abbruch"] = f"write_stage: {exc}"
-            reject(today, name, draft, f"technischer Fehler: {exc}")
-    save_state(state)
+            fail(today, name, draft, "write", exc)
+            write_json(dpath, draft)
 
 
 def gelb_hinweis(ki2_protokoll):
@@ -238,25 +278,22 @@ def ki2_check(text, quellen):
 def evaluate_stage():
     """KI2 prüft → Route. Gelb = KI1-Korrektur, danach IMMER erneute KI2-Prüfung.
     Danach Sonderprüfungen (deterministisch): auch Grün kann dort noch rot werden.
-    Endzustände: checked_green oder rejected."""
+    Ergebnis: stage "gruen" oder "abgelehnt" (bzw. "fehler" → Wiederholung)."""
     from ki_client import llm_call, QuotaExhausted
     from special_checks import run_all
     today = datetime.date.today().isoformat()
     curation = json.loads((DRAFTS / f"{today}-curation.json").read_text(encoding="utf-8"))
-    state = load_state()
     ki1_tpl = (ROOT / "prompts" / "ki1.txt").read_text(encoding="utf-8")
-    finished = []
-    quota_hit = False
-    for entry in state["artikel"]:
-        dpath = ROOT / entry["draft_path"]
-        draft = json.loads(dpath.read_text(encoding="utf-8"))
-        if quota_hit:
-            reject(today, dpath.stem, draft, "nicht geprueft: Free-Tier-Tageslimit")
+    for dpath, draft in load_drafts(today):
+        if not needs(draft, "geschrieben", "evaluate"):
             continue
+        name = dpath.stem
         try:
-            cluster = curation["cluster"][entry["cluster_idx"]]
+            cluster = curation["cluster"][draft["cluster_idx"]]
             quellen, _, _ = sources_from_cluster(cluster, today)
             ki1_base = fill(ki1_tpl, QUELLEN=quellen)
+            draft.pop("ki2_validierung", None)
+            draft.pop("gelb_protokoll", None)
 
             rounds = 0
             while True:
@@ -279,34 +316,30 @@ def evaluate_stage():
                     + "Korrigiere NUR diese Stellen und antworte mit dem kompletten korrigierten Artikel."
                 )
                 draft["text"] = llm_call(repair_prompt, model="LARGE").strip()
+                write_json(dpath, draft)  # Zwischenstand sichern
 
             draft["ki2_pruefrunden"] = rounds + 1
             draft["ki2_endampel"] = ampel
-
             special = run_all(draft["text"], quellen)
             draft["special_checks"] = special
             final = "gruen" if (ampel == "gruen" and special.get("bestaende") is True) else "rot"
             draft["ampel_final"] = final
-
+            clear_fail(today, name, draft)
             if final != "gruen":
                 grund = "KI2 rot/gelb-erschoepft" if ampel != "gruen" else "Sonderpruefung nicht bestanden"
-                reject(today, dpath.stem, draft, grund)
+                reject(today, name, draft, grund)
             else:
-                entry["stage"] = "checked_green"
-                finished.append(entry)
+                draft["stage"] = "gruen"
         except QuotaExhausted as exc:
             print(f"::error::Free-Tier-Tageslimit erreicht: {exc}")
-            quota_hit = True
-            reject(today, dpath.stem, draft, "nicht geprueft: Free-Tier-Tageslimit")
+            fail(today, name, draft, "evaluate", "Free-Tier-Tageslimit")
+            write_json(dpath, draft)
+            break
         except Exception as exc:
             traceback.print_exc()
-            print(f"::error::{dpath.stem} in evaluate_stage fehlgeschlagen: {exc}")
-            draft["abbruch"] = f"evaluate_stage: {exc}"
-            reject(today, dpath.stem, draft, f"technischer Fehler: {exc}")
+            print(f"::error::{name} in evaluate_stage fehlgeschlagen: {exc}")
+            fail(today, name, draft, "evaluate", exc)
         write_json(dpath, draft)
-
-    state["artikel"] = finished
-    save_state(state)
 
 
 def apply_replacements(text, risiken):
@@ -347,36 +380,38 @@ def ki3_check(text, quellen):
 
 
 def legal_stage():
-    """KI3 Rechtsabnahme. freigabe → published_ready. stopp/unklar → rejected
+    """KI3 Rechtsabnahme. freigabe → stage "freigegeben". stopp/unklar → abgelehnt
     (endgültig). nachbesserung → EINE Nachprüfung (KI2 + Sonderprüfung + KI3),
-    nur eindeutiges Bestehen aller drei → published_ready."""
+    nur eindeutiges Bestehen aller drei → "freigegeben"."""
     from ki_client import QuotaExhausted
     from special_checks import run_all
     today = datetime.date.today().isoformat()
     curation = json.loads((DRAFTS / f"{today}-curation.json").read_text(encoding="utf-8"))
-    state = load_state()
-    remaining = []
-    quota_hit = False
-    for entry in state["artikel"]:
-        dpath = ROOT / entry["draft_path"]
-        draft = json.loads(dpath.read_text(encoding="utf-8"))
-        if quota_hit:
-            reject(today, dpath.stem, draft, "nicht rechtlich geprueft: Free-Tier-Tageslimit")
+    for dpath, draft in load_drafts(today):
+        if not needs(draft, "gruen", "legal"):
             continue
+        name = dpath.stem
+        # Wiederholung nach Abbruch mitten in einer Nachbesserung: zurück auf
+        # den von KI2 geprüften Text — nie ungeprüft nachgebesserten Text nutzen.
+        if draft.get("text_vor_ki3"):
+            draft["text"] = draft.pop("text_vor_ki3")
+            for k in ("ki3_nachbesserung", "ki2_nachpruefung", "special_checks_nachpruefung", "ki3_nachpruefung"):
+                draft.pop(k, None)
         try:
-            cluster = curation["cluster"][entry["cluster_idx"]]
+            cluster = curation["cluster"][draft["cluster_idx"]]
             quellen, _, _ = sources_from_cluster(cluster, today)
             entscheidung, result, gruende = ki3_check(draft["text"], quellen)
             draft["ki3_entscheidung"] = result
             draft["ki3_validierung"] = {"entscheidung": entscheidung, "gruende": gruende}
+            clear_fail(today, name, draft)
 
             if entscheidung == "freigabe":
-                draft["freigabe_final"] = True
+                pass
             elif entscheidung == "nachbesserung":
                 neu, fehl = apply_replacements(draft["text"], result.get("risiken", []))
                 if fehl:
                     # Stellen selbst nicht loggen (Zitat aus abgelehntem Text)
-                    reject(today, dpath.stem, draft, f"KI3-Nachbesserung nicht anwendbar ({len(fehl)} Stelle(n) nicht gefunden)")
+                    reject(today, name, draft, f"KI3-Nachbesserung nicht anwendbar ({len(fehl)} Stelle(n) nicht gefunden)")
                     write_json(dpath, draft)
                     continue
                 draft["text_vor_ki3"] = draft["text"]
@@ -388,35 +423,33 @@ def legal_stage():
                 special2 = run_all(neu, quellen)
                 draft["special_checks_nachpruefung"] = special2
                 if ampel2 != "gruen" or special2.get("bestaende") is not True:
-                    reject(today, dpath.stem, draft, "Nachpruefung nach KI3-Nachbesserung nicht bestanden (KI2/Sonderpruefung)")
+                    reject(today, name, draft, "Nachpruefung nach KI3-Nachbesserung nicht bestanden (KI2/Sonderpruefung)")
                     write_json(dpath, draft)
                     continue
                 ent2, res2, gr3 = ki3_check(neu, quellen)
                 draft["ki3_nachpruefung"] = {"entscheidung": ent2, "gruende": gr3, "urteil": res2}
                 if ent2 != "freigabe":
-                    reject(today, dpath.stem, draft, f"KI3-Nachpruefung: {ent2}")
+                    reject(today, name, draft, f"KI3-Nachpruefung: {ent2}")
                     write_json(dpath, draft)
                     continue
-                draft["freigabe_final"] = True
+                draft.pop("text_vor_ki3", None)
             else:
-                reject(today, dpath.stem, draft, f"KI3: stopp ({'; '.join(gruende)})")
+                reject(today, name, draft, f"KI3: stopp ({'; '.join(gruende)})")
                 write_json(dpath, draft)
                 continue
 
-            entry["stage"] = "published_ready"
-            remaining.append(entry)
+            draft["freigabe_final"] = True
+            draft["stage"] = "freigegeben"
         except QuotaExhausted as exc:
             print(f"::error::Free-Tier-Tageslimit erreicht: {exc}")
-            quota_hit = True
-            reject(today, dpath.stem, draft, "nicht rechtlich geprueft: Free-Tier-Tageslimit")
+            fail(today, name, draft, "legal", "Free-Tier-Tageslimit")
+            write_json(dpath, draft)
+            break
         except Exception as exc:
             traceback.print_exc()
-            print(f"::error::{dpath.stem} in legal_stage fehlgeschlagen: {exc}")
-            draft["abbruch"] = f"legal_stage: {exc}"
-            reject(today, dpath.stem, draft, f"technischer Fehler: {exc}")
+            print(f"::error::{name} in legal_stage fehlgeschlagen: {exc}")
+            fail(today, name, draft, "legal", exc)
         write_json(dpath, draft)
-    state["artikel"] = remaining
-    save_state(state)
 
 
 if __name__ == "__main__":
