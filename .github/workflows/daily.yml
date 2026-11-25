@@ -22,9 +22,14 @@ jobs:
 
       # Vorarbeit des Tages (Teaser + Entwürfe) aus dem privaten Actions-Cache
       # holen: ein erneuter Lauf macht dort weiter, wo der letzte abbrach.
+      # EIN Datum für den ganzen Lauf (auch wenn er über Mitternacht UTC läuft)
       - name: Tag bestimmen
         id: day
-        run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+        run: |
+          DAY=$(date -u +%F)
+          echo "day=$DAY" >> "$GITHUB_OUTPUT"
+          echo "yesterday=$(date -u -d "$DAY - 1 day" +%F)" >> "$GITHUB_OUTPUT"
+          echo "KNALL_DAY=$DAY" >> "$GITHUB_ENV"
 
       - name: Vorarbeit wiederherstellen
         uses: actions/cache/restore@v4
@@ -33,8 +38,10 @@ jobs:
             sources
             drafts
           key: knall-work-${{ steps.day.outputs.day }}-${{ github.run_id }}-${{ github.run_attempt }}
+          # neuester Stand von heute; sonst der von gestern (offene Entwürfe fertig machen)
           restore-keys: |
             knall-work-${{ steps.day.outputs.day }}-
+            knall-work-${{ steps.day.outputs.yesterday }}-
 
       - uses: actions/setup-python@v5
         with:
@@ -42,6 +49,9 @@ jobs:
 
       - name: Install deps
         run: pip install pyyaml feedparser requests
+
+      - name: Aelteres als gestern aufraeumen (offene Reste → "abgelaufen")
+        run: python scripts/common.py prune
 
       - name: Collect feeds
         run: python scripts/collect.py

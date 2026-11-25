@@ -7,7 +7,11 @@ import json
 import datetime
 import pathlib
 import re
+import sys
 import yaml
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from common import run_day  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CONFIG = yaml.safe_load((ROOT / "config" / "feeds.yml").read_text(encoding="utf-8"))
@@ -55,7 +59,7 @@ def score_item(item):
 
 
 def main():
-    today = datetime.date.today().isoformat()
+    today = run_day()
     src_dir = ROOT / "sources" / today
     candidates = 0
     for path in sorted(src_dir.glob("*.json")):

@@ -11,10 +11,11 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from safety import clean_text  # noqa: E402
+from common import run_day  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CONFIG = yaml.safe_load((ROOT / "config" / "feeds.yml").read_text(encoding="utf-8"))
-DAY = datetime.date.today().isoformat()
+DAY = run_day()
 OUT = ROOT / "sources" / DAY
 OUT.mkdir(parents=True, exist_ok=True)
 
