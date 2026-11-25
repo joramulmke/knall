@@ -7,6 +7,10 @@ import datetime
 import pathlib
 import yaml
 import feedparser
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from safety import clean_text  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CONFIG = yaml.safe_load((ROOT / "config" / "feeds.yml").read_text(encoding="utf-8"))
@@ -26,11 +30,19 @@ def mirror_feed_url(query):
 
 
 def fetch(feed_key, feed_def):
+    if feed_def.get("aktiv") is False:
+        return "deaktiviert"
     if feed_def.get("type") == "google-news-mirror":
         url = mirror_feed_url(feed_def["query"])
-    else:
+    elif feed_def.get("url"):
         url = feed_def["url"]
+    else:
+        return "uebersprungen (keine url; url_pattern erst verifizieren)"
     parsed = feedparser.parse(url)
+    if not parsed.entries:
+        status = getattr(parsed, "status", "?")
+        reason = getattr(parsed, "bozo_exception", "")
+        print(f"::warning::{feed_key}: 0 Eintraege (HTTP {status}) {reason}")
     saved = 0
     for entry in parsed.entries[:25]:
         link = getattr(entry, "link", None)
@@ -41,7 +53,7 @@ def fetch(feed_key, feed_def):
         if path.exists():
             continue
         # Google-News-Artikel haben oft nur Titel/Zusammenfassung — Vollständigkeit prüfen
-        summary = getattr(entry, "summary", "")
+        summary = clean_text(getattr(entry, "summary", ""))
         fulltext_ok = len(summary) > 400
         item = {
             "id": iid,
@@ -49,7 +61,7 @@ def fetch(feed_key, feed_def):
             "ressort": feed_def.get("ressort", "all"),
             "region": feed_def.get("region"),
             "url": link,
-            "title": getattr(entry, "title", "").strip(),
+            "title": clean_text(getattr(entry, "title", "")),
             "summary": summary,
             "published": getattr(entry, "published", ""),
             "collected_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -66,6 +78,9 @@ def main():
     for key, fdef in CONFIG.get("definitions", {}).items():
         try:
             n = fetch(key, fdef)
+            if isinstance(n, str):
+                print(f"{key}: {n}")
+                continue
             print(f"{key}: {n} neu")
             total += n
         except Exception as exc:

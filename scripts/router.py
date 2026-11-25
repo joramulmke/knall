@@ -2,9 +2,17 @@
 router.py — Orchestrator: KI1 schreiben → Regex-Gate → KI2 prüfen →
 Sonderprüfungen → Ampel-Route → KI3 legal.
 
-Kernregel: Nur KI2 entscheidet über grün. Jede Korrektur (gelb) führt
-zurück vor KI2 — der korrigierte Text wird erneut komplett geprüft.
-Es gibt keinen Weg zu grün, der nicht durch eine KI2-Prüfung läuft.
+Kernregeln (keine menschliche Freigabe → fail-closed):
+- Nur KI2 vergibt grün, und nur wenn safety.ki2_verdict() das Protokoll
+  als vollständig und eindeutig "gruen" bestätigt. Alles andere = rot.
+- Jede Gelb-Korrektur führt zurück vor KI2 (max. 2 Runden, dann rot).
+- Sonderprüfungen laufen IMMER, auch nach grün.
+- KI3: nur eindeutige "freigabe" wird veröffentlicht. "stopp" oder
+  unklares Urteil → rejected, endgültig, ohne neue Schleife.
+  "nachbesserung" → Ersatzformulierungen müssen ALLE greifen; danach
+  EINE erneute Prüfung (KI2 + Sonderprüfungen + KI3). Nur wenn alle drei
+  bestehen → veröffentlichen, sonst rejected. Kein zweiter Durchlauf.
+- Ein Fehler in einem Cluster stoppt nicht die anderen.
 
 Stages: write_stage, evaluate_stage, legal_stage
 Status über drafts/_pipeline_state.json.
@@ -13,11 +21,14 @@ import json
 import sys
 import datetime
 import pathlib
+import traceback
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DRAFTS = ROOT / "drafts"
+REJECTED = ROOT / "rejected"
 STATE_FILE = DRAFTS / "_pipeline_state.json"
 MAX_GELB_ROUNDS = 2
+MAX_REGEX_ROUNDS = 2
 
 
 def load_state():
@@ -31,52 +42,97 @@ def save_state(state):
     STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def write_json(path, obj):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def reject(today, name, draft, grund):
+    draft["ampel_final"] = "rot"
+    draft.setdefault("ablehnungsgruende", []).append(grund)
+    write_json(REJECTED / f"{today}-{name}.json", draft)
+    print(f"  → rejected: {grund}")
+
+
 def sources_from_cluster(cluster, today):
-    """Liest die Quelldateien eines Clusters als vereinigten Quelltext."""
+    """Liest die Quelldateien eines Clusters als bereinigten, klar begrenzten
+    Quelltext. Quellen mit Prompt-Injection-Mustern werden verworfen.
+    Rückgabe: (quelltext, verworfene_ids, quellen_meta)."""
+    from safety import clean_text, injection_hits
     src_dir = ROOT / "sources" / today
-    texts = []
-    for aid in cluster.get("artikel_ids", []):
+    texts, dropped, meta = [], [], []
+    for n, aid in enumerate(cluster.get("artikel_ids", []), start=1):
         path = src_dir / f"{aid}.json"
-        if path.exists():
-            item = json.loads(path.read_text(encoding="utf-8"))
-            texts.append(
-                f"## Quelle: {item['title']}\nURL: {item['url']}\nInhalt: {item['summary']}"
-            )
-    return "\n\n".join(texts)
+        if not path.exists():
+            continue
+        item = json.loads(path.read_text(encoding="utf-8"))
+        title = clean_text(item.get("title", ""))
+        body = clean_text(item.get("summary", ""))
+        if injection_hits(title + "\n" + body):
+            print(f"  Quelle {aid} verworfen: Anweisungs-Text erkannt (Prompt-Injection?)")
+            dropped.append(aid)
+            continue
+        texts.append(
+            f"<quelle nr=\"{n}\">\nTitel: {title}\nQuelle: {clean_text(item.get('source_key', ''))}\n"
+            f"URL: {clean_text(item.get('url', ''))}\nInhalt: {body}\n</quelle>"
+        )
+        meta.append({"id": aid, "titel": title, "url": item.get("url", ""), "quelle": item.get("source_key", "")})
+    return "\n\n".join(texts), dropped, meta
+
+
+def fill(template, **kw):
+    out = template
+    for k, v in kw.items():
+        out = out.replace("{{" + k + "}}", v)
+    return out
 
 
 def write_stage():
     """KI1 schreibt pro Cluster; danach Regex-Gate mit bis zu 2 billigen Korrekturrunden."""
-    from ki_client import llm_call
+    from ki_client import llm_call, QuotaExhausted
     from regex_gate import check
     today = datetime.date.today().isoformat()
     curation = json.loads((DRAFTS / f"{today}-curation.json").read_text(encoding="utf-8"))
     state = {"artikel": []}
+    save_state(state)
+    ki1_tpl = (ROOT / "prompts" / "ki1.txt").read_text(encoding="utf-8")
     for idx, cluster in enumerate(curation.get("cluster", [])):
-        quellen = sources_from_cluster(cluster, today)
-        base_prompt = (ROOT / "prompts" / "ki1.txt").read_text(encoding="utf-8").replace("{{QUELLEN}}", quellen)
-        raw = llm_call(base_prompt, model="LARGE", max_tokens=1200)
-        findings = check(raw)
-        rounds = 0
-        while findings and rounds < 2:
-            repair_prompt = (
-                base_prompt
-                + "\n\nDein bisheriger Text enthält Stil- und Formfehler. Korrigiere NUR diese Stellen und antworte mit dem kompletten korrigierten Artikel:\n"
-                + "\n".join(f"- {f['regel']}: {f['stelle']}" for f in findings)
-            )
-            raw = llm_call(repair_prompt, model="LARGE", max_tokens=1200)
-            findings = check(raw)
-            rounds += 1
-        draft = {
-            "cluster_idx": idx,
-            "cluster": cluster,
-            "text": raw,
-            "regex_rest_findings": findings,
-            "korrekturrunden_regex": rounds,
-        }
-        dpath = DRAFTS / f"{today}-draft-{idx}.json"
-        dpath.write_text(json.dumps(draft, ensure_ascii=False, indent=2), encoding="utf-8")
-        state["artikel"].append({"draft_path": str(dpath.relative_to(ROOT)), "cluster_idx": idx, "stage": "regex_done"})
+        name = f"draft-{idx}"
+        draft = {"cluster_idx": idx, "cluster": cluster}
+        try:
+            quellen, dropped, meta = sources_from_cluster(cluster, today)
+            draft["quellen_verworfen"] = dropped
+            draft["quellen_meta"] = meta
+            if not quellen:
+                reject(today, name, draft, "keine verwertbaren Quellen")
+                continue
+            base_prompt = fill(ki1_tpl, QUELLEN=quellen)
+            raw = llm_call(base_prompt, model="LARGE").strip()
+            findings = check(raw, quellen)
+            rounds = 0
+            while findings and rounds < MAX_REGEX_ROUNDS:
+                repair_prompt = (
+                    base_prompt
+                    + "\n\nDein bisheriger Text:\n<artikel>\n" + raw + "\n</artikel>\n\n"
+                    + "Er enthält Stil- und Formfehler. Korrigiere NUR diese Stellen und antworte mit dem kompletten korrigierten Artikel:\n"
+                    + "\n".join(f"- {f['regel']}: {f['stelle']}" for f in findings)
+                )
+                raw = llm_call(repair_prompt, model="LARGE").strip()
+                findings = check(raw, quellen)
+                rounds += 1
+            draft.update({"text": raw, "regex_rest_findings": findings, "korrekturrunden_regex": rounds})
+            dpath = DRAFTS / f"{today}-{name}.json"
+            write_json(dpath, draft)
+            state["artikel"].append({"draft_path": str(dpath.relative_to(ROOT)), "cluster_idx": idx, "stage": "regex_done"})
+            save_state(state)
+        except QuotaExhausted as exc:
+            print(f"::error::Free-Tier-Tageslimit erreicht — restliche Cluster entfallen: {exc}")
+            break
+        except Exception as exc:
+            traceback.print_exc()
+            print(f"::error::Cluster {idx} in write_stage fehlgeschlagen: {exc}")
+            draft["abbruch"] = f"write_stage: {exc}"
+            reject(today, name, draft, f"technischer Fehler: {exc}")
     save_state(state)
 
 
@@ -84,125 +140,216 @@ def gelb_hinweis(ki2_protokoll):
     """Sammelt alle Gelb-Vorschläge aus dem KI2-Protokoll zu einem Korrekturtext."""
     teile = []
     if ki2_protokoll.get("korrekturhinweis_gesamt"):
-        teile.append(ki2_protokoll["korrekturhinweis_gesamt"])
-    for satz in ki2_protokoll.get("saetze", []):
-        for v in satz.get("verstoesse", []):
-            if v.get("vorschlag"):
+        teile.append(str(ki2_protokoll["korrekturhinweis_gesamt"]))
+    for satz in ki2_protokoll.get("saetze", []) or []:
+        if not isinstance(satz, dict):
+            continue
+        for v in satz.get("verstoesse", []) or []:
+            if isinstance(v, dict) and v.get("vorschlag"):
                 teile.append(f"Satz {satz.get('satz_nr')}: {v['vorschlag']}")
-    if ki2_protokoll.get("titel_befund") == "gelb":
+    if str(ki2_protokoll.get("titel_befund", "")).lower() == "gelb":
         teile.append("Auch der Titel hat einen Stil-Befund: passe ihn an.")
     return " ".join(teile) if teile else "Stil-Anmerkungen der Prüfung beachten."
 
 
+def ki2_check(text, quellen):
+    """Eine KI2-Prüfung + strenge Validierung. Rückgabe (ampel, protokoll, gründe)."""
+    from ki_client import llm_json
+    from safety import ki2_verdict, injection_hits
+    hits = injection_hits(text)
+    if hits:
+        return "rot", {"systemfehler": "Anweisungs-Text im Artikel"}, [f"Injection-Muster im Artikel: {hits}"]
+    tpl = (ROOT / "prompts" / "ki2.txt").read_text(encoding="utf-8")
+    protokoll = llm_json(fill(tpl, ARTIKEL=text, QUELLEN=quellen), model="LARGE", temperature=0.0)
+    ampel, gruende = ki2_verdict(protokoll, text)
+    return ampel, protokoll, gruende
+
+
 def evaluate_stage():
-    """KI2 prüft → Route. Gelb = KI1-Korrektur, danach IMMER erneute KI2-Prüfung
-    des korrigierten Texts. Grün gibt es nur durch KI2 auf dem letzten Text.
+    """KI2 prüft → Route. Gelb = KI1-Korrektur, danach IMMER erneute KI2-Prüfung.
     Danach Sonderprüfungen (deterministisch): auch Grün kann dort noch rot werden.
     Endzustände: checked_green oder rejected."""
-    from ki_client import llm_json, llm_call
+    from ki_client import llm_call, QuotaExhausted
     from special_checks import run_all
     today = datetime.date.today().isoformat()
     curation = json.loads((DRAFTS / f"{today}-curation.json").read_text(encoding="utf-8"))
     state = load_state()
+    ki1_tpl = (ROOT / "prompts" / "ki1.txt").read_text(encoding="utf-8")
     finished = []
+    quota_hit = False
     for entry in state["artikel"]:
         dpath = ROOT / entry["draft_path"]
         draft = json.loads(dpath.read_text(encoding="utf-8"))
-        cluster = curation["cluster"][entry["cluster_idx"]]
-        quellen = sources_from_cluster(cluster, today)
-        ki2_prompt_file = (ROOT / "prompts" / "ki2.txt").read_text(encoding="utf-8")
-        ki1_base = (ROOT / "prompts" / "ki1.txt").read_text(encoding="utf-8").replace("{{QUELLEN}}", quellen)
+        if quota_hit:
+            reject(today, dpath.stem, draft, "nicht geprueft: Free-Tier-Tageslimit")
+            continue
+        try:
+            cluster = curation["cluster"][entry["cluster_idx"]]
+            quellen, _, _ = sources_from_cluster(cluster, today)
+            ki1_base = fill(ki1_tpl, QUELLEN=quellen)
 
-        rounds = 0
-        ampel = None
-        while True:
-            prompt = ki2_prompt_file.replace("{{ARTIKEL}}", draft["text"]).replace("{{QUELLEN}}", quellen)
-            ki2 = llm_json(prompt, model="LARGE")
-            draft["ki2_protokoll"] = ki2
-            ampel = ki2.get("ampel", "rot")
-            if ampel != "gelb":
-                break  # rot oder gruen — Entscheidung liegt bei KI2
-            rounds += 1
-            if rounds > MAX_GELB_ROUNDS:
-                ampel = "rot"  # Gelb-erschlöpft = rot
-                draft["gelb_erschoepft"] = True
-                break
-            hinweis = gelb_hinweis(ki2)
-            draft.setdefault("gelb_protokoll", []).append({"runde": rounds, "hinweis": hinweis})
-            repair_prompt = (
-                ki1_base
-                + f"\n\nDie Prüfung hat Stil-Befunde: {hinweis}\n"
-                + "Korrigiere NUR diese Stellen und antworte mit dem kompletten korrigierten Artikel."
-            )
-            draft["text"] = llm_call(repair_prompt, model="LARGE", max_tokens=1200)
-            # Loop läuft weiter: der neue Text wird im nächsten Durchlauf wieder von KI2 geprüft
+            rounds = 0
+            while True:
+                ampel, protokoll, gruende = ki2_check(draft["text"], quellen)
+                draft["ki2_protokoll"] = protokoll
+                draft.setdefault("ki2_validierung", []).append({"ampel": ampel, "gruende": gruende})
+                if ampel != "gelb":
+                    break
+                rounds += 1
+                if rounds > MAX_GELB_ROUNDS:
+                    ampel = "rot"
+                    draft["gelb_erschoepft"] = True
+                    break
+                hinweis = gelb_hinweis(protokoll)
+                draft.setdefault("gelb_protokoll", []).append({"runde": rounds, "hinweis": hinweis})
+                repair_prompt = (
+                    ki1_base
+                    + "\n\nDein bisheriger Text:\n<artikel>\n" + draft["text"] + "\n</artikel>\n\n"
+                    + f"Die Prüfung hat Stil-Befunde: {hinweis}\n"
+                    + "Korrigiere NUR diese Stellen und antworte mit dem kompletten korrigierten Artikel."
+                )
+                draft["text"] = llm_call(repair_prompt, model="LARGE").strip()
 
-        draft["ki2_pruefrunden"] = rounds + 1
-        draft["ki2_endampel"] = ampel
+            draft["ki2_pruefrunden"] = rounds + 1
+            draft["ki2_endampel"] = ampel
 
-        # Sonderprüfungen laufen IMMER — auch bei grünem KI2-Urteil
-        special = run_all(draft["text"], quellen)
-        draft["special_checks"] = special
-        final = "rot" if (ampel == "rot" or not special.get("bestaende")) else "gruen"
-        draft["ampel_final"] = final
+            special = run_all(draft["text"], quellen)
+            draft["special_checks"] = special
+            final = "gruen" if (ampel == "gruen" and special.get("bestaende") is True) else "rot"
+            draft["ampel_final"] = final
 
-        if final == "rot":
-            (ROOT / "rejected" / f"{today}-{dpath.stem}.json").write_text(
-                json.dumps(draft, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
-        else:
-            entry["stage"] = "checked_green"
-            finished.append(entry)
-        dpath.write_text(json.dumps(draft, ensure_ascii=False, indent=2), encoding="utf-8")
+            if final != "gruen":
+                grund = "KI2 rot/gelb-erschoepft" if ampel != "gruen" else "Sonderpruefung nicht bestanden"
+                reject(today, dpath.stem, draft, grund)
+            else:
+                entry["stage"] = "checked_green"
+                finished.append(entry)
+        except QuotaExhausted as exc:
+            print(f"::error::Free-Tier-Tageslimit erreicht: {exc}")
+            quota_hit = True
+            reject(today, dpath.stem, draft, "nicht geprueft: Free-Tier-Tageslimit")
+        except Exception as exc:
+            traceback.print_exc()
+            print(f"::error::{dpath.stem} in evaluate_stage fehlgeschlagen: {exc}")
+            draft["abbruch"] = f"evaluate_stage: {exc}"
+            reject(today, dpath.stem, draft, f"technischer Fehler: {exc}")
+        write_json(dpath, draft)
 
     state["artikel"] = finished
     save_state(state)
 
 
-def legal_stage():
-    """KI3 Rechtsabnahme: freigabe → published_ready, sonst → rejected."""
+def apply_replacements(text, risiken):
+    """KI3-Ersatzformulierungen anwenden. Rückgabe (neuer_text, fehlgeschlagen).
+    Jede beanstandete Stelle (grenzwertig/kritisch mit Ersatz) MUSS wörtlich
+    gefunden werden — sonst gilt die Nachbesserung als gescheitert."""
+    fehlgeschlagen = []
+    angewendet = 0
+    for r in risiken or []:
+        if not isinstance(r, dict):
+            continue
+        urteil = str(r.get("urteil", "")).lower()
+        stelle = str(r.get("stelle") or "").strip()
+        ersatz = str(r.get("ersatzformulierung") or "").strip()
+        if urteil.startswith("unauff") or not stelle or stelle.lower() == "null":
+            continue
+        if not ersatz:
+            if urteil == "kritisch":
+                fehlgeschlagen.append(stelle)
+            continue
+        if stelle not in text:
+            fehlgeschlagen.append(stelle)
+            continue
+        text = text.replace(stelle, ersatz)
+        angewendet += 1
+    if angewendet == 0 and not fehlgeschlagen:
+        fehlgeschlagen.append("nachbesserung ohne anwendbare Ersatzformulierung")
+    return text, fehlgeschlagen
+
+
+def ki3_check(text, quellen):
     from ki_client import llm_json
+    from safety import ki3_verdict
+    tpl = (ROOT / "prompts" / "ki3.txt").read_text(encoding="utf-8")
+    result = llm_json(fill(tpl, ARTIKEL=text, QUELLEN=quellen), model="LARGE", temperature=0.0)
+    entscheidung, gruende = ki3_verdict(result)
+    return entscheidung, result, gruende
+
+
+def legal_stage():
+    """KI3 Rechtsabnahme. freigabe → published_ready. stopp/unklar → rejected
+    (endgültig). nachbesserung → EINE Nachprüfung (KI2 + Sonderprüfung + KI3),
+    nur eindeutiges Bestehen aller drei → published_ready."""
+    from ki_client import QuotaExhausted
+    from special_checks import run_all
     today = datetime.date.today().isoformat()
     curation = json.loads((DRAFTS / f"{today}-curation.json").read_text(encoding="utf-8"))
     state = load_state()
     remaining = []
+    quota_hit = False
     for entry in state["artikel"]:
         dpath = ROOT / entry["draft_path"]
         draft = json.loads(dpath.read_text(encoding="utf-8"))
-        cluster = curation["cluster"][entry["cluster_idx"]]
-        quellen = sources_from_cluster(cluster, today)
-        prompt = (ROOT / "prompts" / "ki3.txt").read_text(encoding="utf-8")
-        prompt = prompt.replace("{{ARTIKEL}}", draft["text"]).replace("{{QUELLEN}}", quellen)
-        result = llm_json(prompt, model="LARGE")
-        draft["ki3_entscheidung"] = result
-        if result.get("entscheidung") == "freigabe":
+        if quota_hit:
+            reject(today, dpath.stem, draft, "nicht rechtlich geprueft: Free-Tier-Tageslimit")
+            continue
+        try:
+            cluster = curation["cluster"][entry["cluster_idx"]]
+            quellen, _, _ = sources_from_cluster(cluster, today)
+            entscheidung, result, gruende = ki3_check(draft["text"], quellen)
+            draft["ki3_entscheidung"] = result
+            draft["ki3_validierung"] = {"entscheidung": entscheidung, "gruende": gruende}
+
+            if entscheidung == "freigabe":
+                draft["freigabe_final"] = True
+            elif entscheidung == "nachbesserung":
+                neu, fehl = apply_replacements(draft["text"], result.get("risiken", []))
+                if fehl:
+                    reject(today, dpath.stem, draft, f"KI3-Nachbesserung nicht anwendbar: {fehl}")
+                    write_json(dpath, draft)
+                    continue
+                draft["text_vor_ki3"] = draft["text"]
+                draft["text"] = neu
+                draft["ki3_nachbesserung"] = True
+                # EINE Nachprüfung, keine Schleife
+                ampel2, prot2, gr2 = ki2_check(neu, quellen)
+                draft["ki2_nachpruefung"] = {"ampel": ampel2, "gruende": gr2, "protokoll": prot2}
+                special2 = run_all(neu, quellen)
+                draft["special_checks_nachpruefung"] = special2
+                if ampel2 != "gruen" or special2.get("bestaende") is not True:
+                    reject(today, dpath.stem, draft, "Nachpruefung nach KI3-Nachbesserung nicht bestanden (KI2/Sonderpruefung)")
+                    write_json(dpath, draft)
+                    continue
+                ent2, res2, gr3 = ki3_check(neu, quellen)
+                draft["ki3_nachpruefung"] = {"entscheidung": ent2, "gruende": gr3, "urteil": res2}
+                if ent2 != "freigabe":
+                    reject(today, dpath.stem, draft, f"KI3-Nachpruefung: {ent2}")
+                    write_json(dpath, draft)
+                    continue
+                draft["freigabe_final"] = True
+            else:
+                reject(today, dpath.stem, draft, f"KI3: stopp ({'; '.join(gruende)})")
+                write_json(dpath, draft)
+                continue
+
             entry["stage"] = "published_ready"
             remaining.append(entry)
-        elif result.get("entscheidung") == "nachbesserung":
-            draft["text"] = apply_replacements(draft["text"], result.get("risiken", []))
-            draft["ki3_nachbesserung"] = True
-            entry["stage"] = "published_ready"
-            remaining.append(entry)
-        else:
-            (ROOT / "rejected" / f"{today}-{dpath.stem}.json").write_text(
-                json.dumps(draft, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
-        dpath.write_text(json.dumps(draft, ensure_ascii=False, indent=2), encoding="utf-8")
+        except QuotaExhausted as exc:
+            print(f"::error::Free-Tier-Tageslimit erreicht: {exc}")
+            quota_hit = True
+            reject(today, dpath.stem, draft, "nicht rechtlich geprueft: Free-Tier-Tageslimit")
+        except Exception as exc:
+            traceback.print_exc()
+            print(f"::error::{dpath.stem} in legal_stage fehlgeschlagen: {exc}")
+            draft["abbruch"] = f"legal_stage: {exc}"
+            reject(today, dpath.stem, draft, f"technischer Fehler: {exc}")
+        write_json(dpath, draft)
     state["artikel"] = remaining
     save_state(state)
 
 
-def apply_replacements(text, risiken):
-    """KI3-Ersatzformulierungen anwenden (String-Ersetzung, v1)."""
-    for r in risiken:
-        stelle = r.get("stelle")
-        ersatz = r.get("ersatzformulierung")
-        if stelle and ersatz and stelle != "null" and stelle in text:
-            text = text.replace(stelle, ersatz)
-    return text
-
-
 if __name__ == "__main__":
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
     stages = {"write_stage": write_stage, "evaluate_stage": evaluate_stage, "legal_stage": legal_stage}
     if cmd not in stages:

@@ -64,11 +64,14 @@ jobs:
       - name: Update stats
         run: python scripts/stats.py
 
+      - name: Build site
+        run: python scripts/build_site.py
+
       - name: Commit pipeline output
         run: |
           git config user.name "knall-bot"
           git config user.email "bot@knall.local"
-          git add -A sources drafts published rejected stats.json
+          git add -A sources drafts published rejected stats.json site
           git diff --cached --quiet || git commit -m "pipeline: $(date -u +%F)"
           git push
 
@@ -81,6 +84,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}   # neuester Stand inkl. Pipeline-Commit, nicht github.sha
       - name: Build site
         run: |
           mkdir -p _site

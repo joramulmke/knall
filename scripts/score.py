@@ -6,6 +6,7 @@ fliegen raus (Datei bleibt, Flag wird gesetzt).
 import json
 import datetime
 import pathlib
+import re
 import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -13,9 +14,11 @@ CONFIG = yaml.safe_load((ROOT / "config" / "feeds.yml").read_text(encoding="utf-
 SCORES = CONFIG.get("scores", {})
 MIN_SCORE = SCORES.get("minimum_score_to_advance", 4)
 
+# Ressort-Name im Output wie in den Prompts (alle-gleich mit Bindestrich)
 KEYWORDS = {}
-for ressort in ["kohle", "wohnen", "pflege", "klima", "alle_gleich"]:
-    KEYWORDS[ressort] = SCORES.get(f"keywords_{ressort}", [])
+for key, name in [("kohle", "kohle"), ("wohnen", "wohnen"), ("pflege", "pflege"),
+                  ("klima", "klima"), ("alle_gleich", "alle-gleich")]:
+    KEYWORDS[name] = SCORES.get(f"keywords_{key}", [])
 REGION_BONUS_WORDS = SCORES.get("keywords_region_bonus", [])
 REGION_BONUS_OST = SCORES.get("region_bonus_ost", 2)
 CONFLICT_BONUS = SCORES.get("conflict_bonus", 1)
@@ -26,21 +29,26 @@ CONFLICT_WORDS = [
 ]
 
 
+def hit(word, text):
+    """Treffer am Wortanfang (Komposita wie 'Mindestlohnerhöhung' zählen,
+    'Datenschutz' zählt nicht für 'Schutz')."""
+    return re.search(r"(?<![\wäöüß])" + re.escape(word.lower()), text) is not None
+
+
 def score_item(item):
     text = (item.get("title", "") + " " + item.get("summary", "")).lower()
     s = 0
-    best_ressort = None
+    best_ressort, best_hits = None, 0
     for ressort, words in KEYWORDS.items():
-        hits = sum(1 for w in words if w.lower() in text)
-        if hits > 0:
-            s += hits
-            if best_ressort is None or hits > 0:
-                best_ressort = ressort
+        hits = sum(1 for w in words if hit(w, text))
+        s += hits
+        if hits > best_hits:
+            best_ressort, best_hits = ressort, hits
     if item.get("region"):
         s += REGION_BONUS_OST
-    elif any(w.lower() in text for w in REGION_BONUS_WORDS):
+    elif any(hit(w, text) for w in REGION_BONUS_WORDS):
         s += REGION_BONUS_OST
-    s += CONFLICT_BONUS * sum(1 for w in CONFLICT_WORDS if w.lower() in text)
+    s += CONFLICT_BONUS * sum(1 for w in CONFLICT_WORDS if hit(w, text))
     if not item.get("vollstaendig"):
         s -= 2
     return s, best_ressort

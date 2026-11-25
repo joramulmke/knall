@@ -12,21 +12,25 @@ definitions:
     type: nativ
     url_pattern: "https://taz.de/Wirtschaft/!p{id};rss/"
     note: p-ID beim ersten Lauf verifizieren
+    aktiv: false   # erst aktivieren, wenn url mit echter p-ID eingetragen ist
     ressort: kohle
   taz_gesellschaft:
     type: nativ
     url_pattern: "https://taz.de/Gesellschaft/!p{id};rss/"
     note: p-ID beim ersten Lauf verifizieren
+    aktiv: false   # erst aktivieren, wenn url mit echter p-ID eingetragen ist
     ressort: alle-gleich
   taz_gesundheit:
     type: nativ
     url_pattern: "https://taz.de/Recht/!p{id};rss/"
     note: p-ID beim ersten Lauf verifizieren
+    aktiv: false   # erst aktivieren, wenn url mit echter p-ID eingetragen ist
     ressort: pflege
   taz_oeko:
     type: nativ
     url_pattern: "https://taz.de/Umwelt/!p{id};rss/"
     note: p-ID beim ersten Lauf verifizieren
+    aktiv: false   # erst aktivieren, wenn url mit echter p-ID eingetragen ist
     ressort: klima
 
   nd_gesamt:
@@ -41,8 +45,8 @@ definitions:
     ressort: all
   deutschlandfunk:
     type: nativ
-    url: https://www.deutschlandfunk.de/rss-angebot-102.html
-    note: feed-URLs pro Ressort je nach Seite extrahieren
+    url: https://www.deutschlandfunk.de/nachrichten-100.rss
+    note: war eine HTML-Seite statt Feed; neue URL im naechsten Lauf-Log pruefen
     ressort: all
 
   # ---------- Behörden / Institutionen ----------
