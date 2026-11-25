@@ -63,6 +63,9 @@ DEFAULT_CHECK_GROQ = "groq:openai/gpt-oss-120b"
 DEFAULT_GROQ_MODELS = ["groq:openai/gpt-oss-120b", "groq:llama-3.3-70b-versatile"]
 GROQ = "groq:"
 GROQ_TAGESLIMIT = int(os.environ.get("KNALL_GROQ_TAGESLIMIT") or 900)
+# Eigene Kennung: Groq (Cloudflare) sperrt die Python-Standardkennung
+# "Python-urllib" mit HTTP 403 / "error code: 1010".
+USER_AGENT = "knall-pipeline/1.0"
 GROQ_MAX_TOKENS = 2500           # Groq-Gratis: kleines Token-pro-Minute-Limit
 
 # Fallback-Kette bei persistentem 429, leeren Antworten oder fehlendem Modell.
@@ -217,7 +220,8 @@ def available_groq_models():
         return _GROQ_AVAILABLE or None
     try:
         req = urllib.request.Request("https://api.groq.com/openai/v1/models",
-                                     headers={"Authorization": f"Bearer {os.environ['GROQ_API_KEY']}"})
+                                     headers={"Authorization": f"Bearer {os.environ['GROQ_API_KEY']}",
+                                              "User-Agent": USER_AGENT})
         with urllib.request.urlopen(req, timeout=30) as resp:
             data = json.loads(resp.read())
         _GROQ_AVAILABLE = {m["id"] for m in data.get("data", [])}
@@ -321,6 +325,7 @@ def _senden(url, key, payload, model):
         headers={
             "Authorization": f"Bearer {key}",
             "Content-Type": "application/json",
+            "User-Agent": USER_AGENT,
         },
     )
     with urllib.request.urlopen(req, timeout=180) as resp:
@@ -385,7 +390,7 @@ def llm_call(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.3)
                     # Groq-Tageslimit, Schlüsselproblem oder Anfrage zu groß fürs Gratis-Limit:
                     # Groq überspringen, OpenRouter übernimmt.
                     print(f"  Groq HTTP {exc.code} bei {chain_model}: {body} — weiter ohne Groq")
-                    if exc.code != 413:
+                    if exc.code != 413 and "1010" not in body:
                         sperre_modell(chain_model, 24 * 3600)
                     last_error = RuntimeError(f"Groq HTTP {exc.code}: {body}")
                     break

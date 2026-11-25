@@ -245,3 +245,25 @@ def test_ohne_groq_bleibt_tageslimit_abbruch(monkeypatch, tmp_path):
     monkeypatch.setattr(ki, "budget_rest", lambda: 0)
     with pytest.raises(ki.QuotaExhausted):
         ki.llm_call("p", model="LARGE")
+
+
+def test_eigene_user_agent_kennung(monkeypatch, tmp_path):
+    """Groq/Cloudflare sperrt 'Python-urllib' (HTTP 403, error code 1010)."""
+    import io
+    import json as _json
+    ki, _, _ = _ki_setup(monkeypatch, tmp_path)
+    gesehen = {}
+
+    class Antwort(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def urlopen(req, timeout=None):
+        gesehen["ua"] = req.get_header("User-agent")
+        return Antwort(_json.dumps({"choices": [{"message": {"content": "ok"}}]}).encode())
+    monkeypatch.setattr(ki.urllib.request, "urlopen", urlopen)
+    assert ki._senden("https://api.groq.com/x", "k", b"{}", "groq:m") == "ok"
+    assert gesehen["ua"] and "python" not in gesehen["ua"].lower()
