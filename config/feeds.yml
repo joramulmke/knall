@@ -339,6 +339,70 @@ definitions:
     url: https://www.bundestag.de/static/appdata/includes/rss/recht.rss
     ressort: woche
 
+  # ---------- Weitere Quellen (2026-11-25) ----------
+  europarl_presse:
+    type: nativ
+    name: "Europäisches Parlament"
+    url: https://www.europarl.europa.eu/rss/doc/press-releases/de.xml
+    ressort: all
+  dlf_politik:
+    type: nativ
+    name: "Deutschlandfunk"
+    url: https://www.deutschlandfunk.de/politikportal-100.rss
+    ressort: all
+  junge_welt:
+    type: nativ
+    name: "junge Welt"
+    url: https://www.jungewelt.de/aktuell/newsticker.rss
+    ressort: all
+  sz_politik:
+    type: nativ
+    name: "Süddeutsche Zeitung"
+    url: https://rss.sueddeutsche.de/rss/Politik
+    ressort: all
+  gruene_bundestag:
+    type: nativ
+    name: "Grüne im Bundestag"
+    url: https://www.gruene-bundestag.de/pressemitteilungen-rss-feed.xml
+    ressort: all
+  netzpolitik:
+    type: nativ
+    name: "netzpolitik.org"
+    url: https://www.netzpolitik.org/wp-rss2.php
+    ressort: alle-gleich
+  t_online:
+    type: nativ
+    name: "t-online"
+    url: https://www.t-online.de/nachrichten/feed.rss
+    ressort: all
+  schwulissimo:
+    type: nativ
+    name: "Schwulissimo"
+    url: https://schwulissimo.de/feeds/rss
+    ressort: alle-gleich
+  rote_hilfe:
+    type: nativ
+    name: "Rote Hilfe"
+    url: https://rote-hilfe.de/meldungen.xml
+    ressort: alle-gleich
+  # bpb: nur nachrichtennahe Feeds. Nicht: Online-Angebote, Publikationen,
+  # Veranstaltungen, APuZ, Bürgerhaushalt, Dossier Bildung, Stellenangebote.
+  bpb_hintergrund:
+    type: nativ
+    name: "bpb"
+    url: https://www.bpb.de/rss-feed/230153.rss
+    ressort: all
+  bpb_migration:
+    type: nativ
+    name: "bpb"
+    url: https://www.bpb.de/rss-feed/325589.rss
+    ressort: alle-gleich
+  bpb_presse:
+    type: nativ
+    name: "bpb"
+    url: https://www.bpb.de/rss-feed/203612.rss
+    ressort: all
+
 # --- Score-Gewichte (score.py) ---
 scores:
   keywords_kohle:
@@ -378,6 +442,13 @@ scores:
     - Schutz
     - Asyl
     - Queer
+    - AfD
+    - rechtsextrem
+    - Rechtsextremis
+    - Neonazi
+    - Verfassungsschutz
+    - Demokratie
+    - Gemeinwohl
   keywords_region_bonus:
     - Frankfurt an der Oder
     - Leipzig
