@@ -220,6 +220,15 @@ def llm_json(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.0)
 def curate():
     import datetime
     today = datetime.date.today().isoformat()
+    out = ROOT / "drafts" / f"{today}-curation.json"
+    if out.exists():
+        try:
+            prev = json.loads(out.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            prev = {}
+        if prev.get("cluster"):
+            print(f"KI0: Kuratierung von heute existiert bereits ({len(prev['cluster'])} Cluster) — uebersprungen")
+            return
     src_dir = ROOT / "sources" / today
     kandidaten = []
     for path in sorted(src_dir.glob("*.json")):
@@ -261,7 +270,6 @@ def curate():
             c["artikel_ids"] = ids
             cluster.append(c)
     result["cluster"] = cluster[:3]
-    out = ROOT / "drafts" / f"{today}-curation.json"
     out.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"KI0: {len(result['cluster'])} Cluster gewaehlt")
 

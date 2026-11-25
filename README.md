@@ -22,6 +22,8 @@ Automatisierte Boulevard-Pipeline: links, arbeitnehmerfreundlich, ökologisch, a
 - KI2: Grün nur, wenn das Protokoll vollständig ist (jeder Satz geprüft, nur bekannte Befunde) und die nachgerechnete Ampel ebenfalls grün ergibt. Alles Unklare = rot.
 - Sonderprüfungen (Zahlen, Namen/Kürzel, 20-Wort-Plagiat, Injection) laufen immer, auch nach Grün.
 - KI3: Veröffentlicht wird nur eine eindeutige, vollständige „freigabe“ (R1–R6). „stopp“ oder Unklares → rejected, endgültig. „nachbesserung“ → alle Ersatzformulierungen müssen wörtlich greifen, danach genau EINE Nachprüfung (KI2 + Sonderprüfung + KI3); jedes Nichtbestehen → rejected, keine weitere Schleife.
+- Fortsetzung bei Abbruch: Teaser und Entwürfe liegen im Actions-Cache. Ein erneuter Lauf am selben Tag überspringt Erledigtes und wiederholt nur technische Fehler; inhaltliche Ablehnungen sind endgültig.
+- SSH-Host-Schlüssel (Ionos, Mirror) werden beim ersten Deploy gemerkt (Cache `sftp-hostkey-v1` / `mirror-hostkey-v1`) und danach strikt geprüft. Bei legitimem Schlüsselwechsel den Cache löschen.
 - publish.py prüft die Freigabe ein zweites Mal (`ampel_final == "gruen"` und `freigabe_final`).
 
 ## Verzeichnisse
@@ -32,8 +34,8 @@ Automatisierte Boulevard-Pipeline: links, arbeitnehmerfreundlich, ökologisch, a
 ├── scripts/               collect.py, score.py, ki_client.py, regex_gate.py,
 │                          special_checks.py, router.py, stats.py, publish.py
 ├── config/feeds.yml       Alle Feed-URLs, Bewertungen, Ressort-Zuordnung
-├── sources/               RSS-Archiv (JSON pro Artikel)
-├── drafts/                KI1-Entwürfe + KI2-Protokolle (nur im Lauf, nicht committet)
+├── sources/               Teaser des Tages (nur im privaten Actions-Cache, nicht committet)
+├── drafts/                Entwürfe + Prüfprotokolle (nur im privaten Actions-Cache, nicht committet)
 ├── published/             Freigegebene Artikel (Markdown + Metadaten)
 ├── rejected/              Ablehnungs-Befunde OHNE Artikeltext (Gründe, Ampeln, Prüfposten)
 ├── site/                  GitHub-Pages-Skeleton
@@ -46,7 +48,6 @@ Benötigte GitHub-Secrets:
 - `OPENROUTER_API_KEY` (oder Äquivalent) — für KI0–KI3
 
 Optional:
-- `SFTP_KNOWN_HOSTS`, `MIRROR_KNOWN_HOSTS` — Host-Schlüssel (Ausgabe von `ssh-keyscan <host>`, einmal von einem vertrauenswürdigen Rechner geprüft). Ohne sie warnt der Deploy und vertraut dem Schlüssel ungeprüft.
 - `KI_MODEL_SMALL`, `KI_MODEL_LARGE`, `KI_FALLBACK_MODELS` (kommagetrennt) — nur `:free`-Modelle, Default siehe scripts/ki_client.py
 
 ## Transparenz

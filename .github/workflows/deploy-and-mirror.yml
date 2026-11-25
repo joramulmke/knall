@@ -22,20 +22,41 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Host-Schlüssel "trust on first use": beim ersten Lauf per ssh-keyscan
+      # gemerkt (Actions-Cache, unveränderlich), danach strikt geprüft.
+      # Ändert sich der Schlüssel, bricht die Verbindung ab (möglicher MITM).
+      # Legitimer Wechsel beim Anbieter: Cache "sftp-hostkey-v1" unter
+      # Actions → Caches löschen, nächster Lauf merkt sich den neuen Schlüssel.
+      - name: Gemerkten SFTP-Host-Schluessel laden
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/hostkeys/sftp_known_hosts
+          key: sftp-hostkey-v1
+
       - name: Setup SFTP host key
         env:
           SFTP_HOST: ${{ secrets.FTP_SERVER }}
-          SFTP_KNOWN_HOSTS: ${{ secrets.SFTP_KNOWN_HOSTS }}
         run: |
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          if [ -n "$SFTP_KNOWN_HOSTS" ]; then
-            printf '%s\n' "$SFTP_KNOWN_HOSTS" >> ~/.ssh/known_hosts
-            echo "Host-Schluessel aus Secret SFTP_KNOWN_HOSTS geladen."
+          mkdir -p ~/.ssh /tmp/hostkeys && chmod 700 ~/.ssh
+          F=/tmp/hostkeys/sftp_known_hosts
+          if [ -s "$F" ]; then
+            echo "Gemerkter SFTP-Host-Schluessel wird strikt geprueft."
           else
-            echo "::warning::Secret SFTP_KNOWN_HOSTS fehlt — Host-Schluessel wird ungeprueft per ssh-keyscan uebernommen (MITM-Risiko). Bitte Secret anlegen."
-            ssh-keyscan -p 22 "$SFTP_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+            echo "::warning::SFTP-Host-Schluessel noch nicht gemerkt (erster Lauf oder Cache abgelaufen) — wird jetzt per ssh-keyscan uebernommen und gemerkt."
+            ssh-keyscan -H -p 22 "$SFTP_HOST" > "$F" 2>/dev/null || true
+            if [ ! -s "$F" ]; then echo "::error::ssh-keyscan fuer SFTP fehlgeschlagen"; exit 1; fi
+            echo "NEW_SFTP_HOSTKEY=true" >> "$GITHUB_ENV"
           fi
+          cat "$F" >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
+          echo "Fingerprints:"; ssh-keygen -lf "$F" | awk '{print $1, $2, $4}'
+
+      - name: SFTP-Host-Schluessel merken
+        if: env.NEW_SFTP_HOSTKEY == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/hostkeys/sftp_known_hosts
+          key: sftp-hostkey-v1
 
       - name: Restore deploy-state cache
         id: restore_deploy_state_cache
@@ -350,18 +371,41 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.MIRROR_SSH_KEY }}
 
-      - name: Add mirror host key
+      # Host-Schlüssel "trust on first use": beim ersten Lauf per ssh-keyscan
+      # gemerkt (Actions-Cache, unveränderlich), danach strikt geprüft.
+      # Ändert sich der Schlüssel, bricht die Verbindung ab (möglicher MITM).
+      # Legitimer Wechsel beim Anbieter: Cache "mirror-hostkey-v1" unter
+      # Actions → Caches löschen, nächster Lauf merkt sich den neuen Schlüssel.
+      - name: Gemerkten Mirror-Host-Schluessel laden
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/hostkeys/mirror_known_hosts
+          key: mirror-hostkey-v1
+
+      - name: Setup Mirror host key
         env:
           MIRROR_HOST: ${{ secrets.MIRROR_HOST }}
-          MIRROR_KNOWN_HOSTS: ${{ secrets.MIRROR_KNOWN_HOSTS }}
         run: |
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          if [ -n "$MIRROR_KNOWN_HOSTS" ]; then
-            printf '%s\n' "$MIRROR_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+          mkdir -p ~/.ssh /tmp/hostkeys && chmod 700 ~/.ssh
+          F=/tmp/hostkeys/mirror_known_hosts
+          if [ -s "$F" ]; then
+            echo "Gemerkter Mirror-Host-Schluessel wird strikt geprueft."
           else
-            echo "::warning::Secret MIRROR_KNOWN_HOSTS fehlt — Host-Schluessel ungeprueft per ssh-keyscan (MITM-Risiko)."
-            ssh-keyscan "$MIRROR_HOST" >> ~/.ssh/known_hosts
+            echo "::warning::Mirror-Host-Schluessel noch nicht gemerkt (erster Lauf oder Cache abgelaufen) — wird jetzt per ssh-keyscan uebernommen und gemerkt."
+            ssh-keyscan -H "$MIRROR_HOST" > "$F" 2>/dev/null || true
+            if [ ! -s "$F" ]; then echo "::error::ssh-keyscan fuer Mirror fehlgeschlagen"; exit 1; fi
+            echo "NEW_MIRROR_HOSTKEY=true" >> "$GITHUB_ENV"
           fi
+          cat "$F" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          echo "Fingerprints:"; ssh-keygen -lf "$F" | awk '{print $1, $2, $4}'
+
+      - name: Mirror-Host-Schluessel merken
+        if: env.NEW_MIRROR_HOSTKEY == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/hostkeys/mirror_known_hosts
+          key: mirror-hostkey-v1
 
       - name: Push snapshot (no history)
         env:

@@ -20,6 +20,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Vorarbeit des Tages (Teaser + Entwürfe) aus dem privaten Actions-Cache
+      # holen: ein erneuter Lauf macht dort weiter, wo der letzte abbrach.
+      - name: Tag bestimmen
+        id: day
+        run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+
+      - name: Vorarbeit wiederherstellen
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            sources
+            drafts
+          key: knall-work-${{ steps.day.outputs.day }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            knall-work-${{ steps.day.outputs.day }}-
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -58,19 +74,23 @@ jobs:
         run: python scripts/router.py legal_stage
 
       - name: Publish
+        if: always()
         run: python scripts/publish.py
 
       - name: Update stats
+        if: always()
         run: python scripts/stats.py
 
       - name: Build site
+        if: always()
         run: python scripts/build_site.py
 
       - name: Commit pipeline output
+        if: always()
         run: |
           git config user.name "knall-bot"
           git config user.email "bot@knall.local"
-          git add -A sources published rejected stats.json site
+          git add -A published rejected stats.json site
           git diff --cached --quiet && { echo "nichts zu committen"; exit 0; }
           git commit -m "pipeline: $(date -u +%F)"
           # main kann sich während des langen Laufs bewegt haben → rebase + retry
@@ -82,6 +102,15 @@ jobs:
           done
           echo "::error::Push nach 4 Versuchen fehlgeschlagen"
           exit 1
+
+      - name: Vorarbeit sichern (auch nach Abbruch)
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            sources
+            drafts
+          key: knall-work-${{ steps.day.outputs.day }}-${{ github.run_id }}-${{ github.run_attempt }}
 
   pages:
     needs: pipeline
