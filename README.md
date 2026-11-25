@@ -57,7 +57,7 @@ Automatisierte Boulevard-Pipeline: links, arbeitnehmerfreundlich, ökologisch, a
 
 Benötigte GitHub-Secrets:
 - `OPENROUTER_API_KEY` (oder Äquivalent) — für KI0–KI3
-- `GROQ_API_KEY` (optional, kostenloser Groq-Tarif ohne Zahlungsmittel) — dann prüfen KI2/KI3 zuerst mit `groq:openai/gpt-oss-120b`; Nemotron und das Schreib-Modell bleiben Backup. Eigenes Tageskontingent `KNALL_GROQ_TAGESLIMIT` (Default 900), eigene Zähler `groq_*` in `stats.json`. Groq-Tageslimit, Schlüsselfehler oder zu große Anfrage → automatisch weiter mit OpenRouter. Für KI0/KI1 steht Groq direkt hinter Gemma (`KI_GROQ_MODELS`, Default `openai/gpt-oss-120b`, `llama-3.3-70b-versatile`).
+- `GROQ_API_KEY` (optional, kostenloser Groq-Tarif ohne Zahlungsmittel) — dann prüfen KI2/KI3 zuerst mit `groq:openai/gpt-oss-120b`; Nemotron und das Schreib-Modell bleiben Backup. Eigenes Tageskontingent `KNALL_GROQ_TAGESLIMIT` (Default 900), eigene Zähler `groq_*` in `stats.json`. Groq-Tageslimit, Schlüsselfehler oder zu große Anfrage → automatisch weiter mit OpenRouter. Für KI0/KI1 steht Groq direkt hinter Gemma. Groq-Modelle: Prüfen/Auswählen `KI_GROQ_MODELS` (Default `openai/gpt-oss-120b`, `openai/gpt-oss-20b`), Schreiben `KI_GROQ_SCHREIBER` (Default `openai/gpt-oss-120b`, `qwen/qwen3.8-27b` — kein kleines Modell). Ein Groq-Minutenlimit stellt ein Modell nur 90 s nach hinten.
 
 Optional (Actions-Variablen):
 - `KI_MODEL_SMALL`, `KI_MODEL_LARGE`, `KI_MODEL_CHECK` (Prüferin KI2/KI3), `KI_FALLBACK_MODELS` (kommagetrennt) — nur `:free`-Modelle, Default siehe scripts/ki_client.py
