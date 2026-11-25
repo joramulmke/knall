@@ -1,13 +1,14 @@
 {
   "2026-11-25": {
-    "rot": 1,
+    "rot": 3,
     "gelb": 0,
     "ki3_stopp": 0,
-    "fehler": 1,
+    "fehler": 0,
     "abgelaufen": 0,
     "published": 0,
     "gruende": [
-      "technischer Fehler in evaluate (wird wiederholt): Free-Tier-Tageslimit",
+      "KI2 rot/gelb-erschoepft",
+      "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft"
     ],
     "warnung_rot_quote": true,
@@ -24,11 +25,12 @@
         "google/gemma-4-31b-it:free": 14,
         "inclusionai/ling-3.2-flash:free": 3,
         "groq:openai/gpt-oss-120b": 12,
-        "groq:llama-3.3-70b-versatile": 1
+        "groq:llama-3.3-70b-versatile": 1,
+        "groq:openai/gpt-oss-20b": 2
       },
       "limit": 50,
-      "groq_anfragen": 13,
-      "groq_ok": 6,
+      "groq_anfragen": 15,
+      "groq_ok": 8,
       "groq_r429": 5,
       "groq_fehler": 2,
       "groq_leer": 0,
@@ -50,7 +52,7 @@
     "tage_ueber_80_prozent": 1,
     "r429_gesamt": 20,
     "anteil_429": 0.4,
-    "groq_schnitt_anfragen": 13.0,
+    "groq_schnitt_anfragen": 15.0,
     "groq_r429_gesamt": 5,
     "im_kontingent": false
   },
