@@ -18,8 +18,9 @@ seinen Stand im Feld "stage":
   geschrieben → gruen → freigegeben → veroeffentlicht   (Erfolgsweg)
   abgelehnt                                              (endgültig)
   fehler (+ "fehler_in": write|evaluate|legal)            (wird wiederholt)
-Ein erneuter Lauf am selben Tag (drafts/ + sources/ kommen aus dem
-Actions-Cache) überspringt Erledigtes und wiederholt nur Fehler/Offenes.
+Ein erneuter Lauf (drafts/ + sources/ kommen aus dem Actions-Cache)
+überspringt Erledigtes und wiederholt nur Fehler/Offenes — zuerst die
+offenen Entwürfe von GESTERN, dann die von heute (common.work_days()).
 Inhaltliche Ablehnungen werden NIE wiederholt.
 """
 import json
@@ -45,10 +46,13 @@ def draft_path(today, idx):
     return DRAFTS / f"{today}-draft-{idx}.json"
 
 
-def load_drafts(today):
+def load_drafts():
+    """Entwürfe von gestern und heute, gestern zuerst. Rückgabe (tag, pfad, entwurf)."""
+    from common import work_days
     out = []
-    for p in sorted(DRAFTS.glob(f"{today}-draft-*.json")):
-        out.append((p, json.loads(p.read_text(encoding="utf-8"))))
+    for day in work_days():
+        for p in sorted(DRAFTS.glob(f"{day}-draft-*.json"), key=lambda x: int(x.stem.rsplit("-", 1)[1])):
+            out.append((day, p, json.loads(p.read_text(encoding="utf-8"))))
     return out
 
 
@@ -197,17 +201,22 @@ def write_stage():
     Bereits geschriebene/entschiedene Entwürfe werden übersprungen."""
     from ki_client import llm_call, QuotaExhausted
     from regex_gate import check
-    today = datetime.date.today().isoformat()
-    curation = json.loads((DRAFTS / f"{today}-curation.json").read_text(encoding="utf-8"))
+    from common import work_days
     ki1_tpl = (ROOT / "prompts" / "ki1.txt").read_text(encoding="utf-8")
-    for idx, cluster in enumerate(curation.get("cluster", [])):
+    jobs = []
+    for day in work_days():  # gestern zuerst
+        cfile = DRAFTS / f"{day}-curation.json"
+        if cfile.exists():
+            for idx, cluster in enumerate(json.loads(cfile.read_text(encoding="utf-8")).get("cluster", [])):
+                jobs.append((day, idx, cluster))
+    for today, idx, cluster in jobs:
         dpath = draft_path(today, idx)
         name = dpath.stem
         draft = json.loads(dpath.read_text(encoding="utf-8")) if dpath.exists() else {}
         if draft and not needs(draft, None, "write"):
             print(f"{name}: bereits '{draft.get('stage')}' — uebersprungen")
             continue
-        draft.update({"cluster_idx": idx, "cluster": cluster})
+        draft.update({"tag": today, "cluster_idx": idx, "cluster": cluster})
         try:
             quellen, dropped, meta = sources_from_cluster(cluster, today)
             draft["quellen_verworfen"] = dropped
@@ -281,15 +290,13 @@ def evaluate_stage():
     Ergebnis: stage "gruen" oder "abgelehnt" (bzw. "fehler" → Wiederholung)."""
     from ki_client import llm_call, QuotaExhausted
     from special_checks import run_all
-    today = datetime.date.today().isoformat()
-    curation = json.loads((DRAFTS / f"{today}-curation.json").read_text(encoding="utf-8"))
     ki1_tpl = (ROOT / "prompts" / "ki1.txt").read_text(encoding="utf-8")
-    for dpath, draft in load_drafts(today):
+    for today, dpath, draft in load_drafts():
         if not needs(draft, "geschrieben", "evaluate"):
             continue
         name = dpath.stem
         try:
-            cluster = curation["cluster"][draft["cluster_idx"]]
+            cluster = draft["cluster"]
             quellen, _, _ = sources_from_cluster(cluster, today)
             ki1_base = fill(ki1_tpl, QUELLEN=quellen)
             draft.pop("ki2_validierung", None)
@@ -385,9 +392,7 @@ def legal_stage():
     nur eindeutiges Bestehen aller drei → "freigegeben"."""
     from ki_client import QuotaExhausted
     from special_checks import run_all
-    today = datetime.date.today().isoformat()
-    curation = json.loads((DRAFTS / f"{today}-curation.json").read_text(encoding="utf-8"))
-    for dpath, draft in load_drafts(today):
+    for today, dpath, draft in load_drafts():
         if not needs(draft, "gruen", "legal"):
             continue
         name = dpath.stem
@@ -398,7 +403,7 @@ def legal_stage():
             for k in ("ki3_nachbesserung", "ki2_nachpruefung", "special_checks_nachpruefung", "ki3_nachpruefung"):
                 draft.pop(k, None)
         try:
-            cluster = curation["cluster"][draft["cluster_idx"]]
+            cluster = draft["cluster"]
             quellen, _, _ = sources_from_cluster(cluster, today)
             entscheidung, result, gruende = ki3_check(draft["text"], quellen)
             draft["ki3_entscheidung"] = result

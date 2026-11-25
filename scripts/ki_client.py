@@ -218,30 +218,62 @@ def llm_json(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.0)
 
 
 def curate():
-    import datetime
-    today = datetime.date.today().isoformat()
-    out = ROOT / "drafts" / f"{today}-curation.json"
-    if out.exists():
+    """KI0 wählt 1–3 Cluster aus den heutigen Teasern.
+
+    Folgeläufe am selben Tag: KI0 wählt NEUE Cluster aus noch unbenutzten
+    Teasern dazu (angehängt, bestehende Indizes bleiben stabil) — aber nur,
+    wenn von heute nichts mehr offen ist (erst fertig machen)
+    und höchstens bis MAX_ARTIKEL_PRO_TAG. Bereits behandelte Themen von
+    gestern und heute gehen als Ausschlussliste an KI0."""
+    from common import run_day, prev_day, is_open, MAX_ARTIKEL_PRO_TAG
+    today = run_day()
+    drafts_dir = ROOT / "drafts"
+    drafts_dir.mkdir(exist_ok=True)
+    out = drafts_dir / f"{today}-curation.json"
+
+    def load(day):
+        f = drafts_dir / f"{day}-curation.json"
         try:
-            prev = json.loads(out.read_text(encoding="utf-8"))
+            return json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
         except json.JSONDecodeError:
-            prev = {}
-        if prev.get("cluster"):
-            print(f"KI0: Kuratierung von heute existiert bereits ({len(prev['cluster'])} Cluster) — uebersprungen")
-            return
+            return {}
+
+    existing = load(today)
+    cluster_alt = existing.get("cluster") or []
+
+    # Erst fertig machen: heutige Cluster, die noch offen sind (Abbruch eines
+    # früheren Laufs) → keine neuen dazu. Offene Entwürfe von GESTERN blockieren
+    # nicht; sie werden in jeder Stufe vor den heutigen abgearbeitet.
+    offen = []
+    for idx in range(len(cluster_alt)):
+        dp = drafts_dir / f"{today}-draft-{idx}.json"
+        d = json.loads(dp.read_text(encoding="utf-8")) if dp.exists() else {"stage": None}
+        if is_open(d):
+            offen.append(f"{today}-draft-{idx}")
+    if offen:
+        print(f"KI0 uebersprungen: erst offene Entwuerfe fertig machen ({', '.join(offen)})")
+        return
+    rest = MAX_ARTIKEL_PRO_TAG - len(cluster_alt)
+    if rest <= 0:
+        print(f"KI0 uebersprungen: Tageslimit von {MAX_ARTIKEL_PRO_TAG} Artikeln erreicht")
+        return
+
+    benutzt = {a for c in cluster_alt for a in c.get("artikel_ids", [])}
     src_dir = ROOT / "sources" / today
     kandidaten = []
     for path in sorted(src_dir.glob("*.json")):
         item = json.loads(path.read_text(encoding="utf-8"))
-        if item.get("advance"):
+        if item.get("advance") and item["id"] not in benutzt:
             kandidaten.append(item)
     kandidaten.sort(key=lambda x: -(x.get("score") or 0))
     top = kandidaten[:20]
-    (ROOT / "drafts").mkdir(exist_ok=True)
     if not top:
-        print("Keine Kandidaten — KI0 uebersprungen")
-        (ROOT / "drafts" / f"{today}-curation.json").write_text("{\"cluster\": []}", encoding="utf-8")
+        print("Keine (neuen) Kandidaten — KI0 uebersprungen")
+        if not out.exists():
+            out.write_text("{\"cluster\": []}", encoding="utf-8")
         return
+
+    bereits = [c.get("thema") for day in (prev_day(), today) for c in (load(day).get("cluster") or []) if c.get("thema")]
     listing = []
     for item in top:
         listing.append({
@@ -252,29 +284,36 @@ def curate():
             "auszug": item["summary"][:300],
             "score": item["score"],
         })
-    prompt_file = ROOT / "prompts" / "ki0.txt"
-    prompt = prompt_file.read_text(encoding="utf-8").replace(
-        "{{KANDIDATEN}}", json.dumps(listing, ensure_ascii=False, indent=1)
-    )
+    prompt = (ROOT / "prompts" / "ki0.txt").read_text(encoding="utf-8")
+    prompt = prompt.replace("{{KANDIDATEN}}", json.dumps(listing, ensure_ascii=False, indent=1))
+    prompt = prompt.replace("{{BEREITS}}", json.dumps(bereits, ensure_ascii=False) if bereits else "[] (noch keine)")
     model = resolve_model("SMALL")
-    print(f"KI0 laeuft mit Modell: {model}")
+    print(f"KI0 laeuft mit Modell: {model} ({len(cluster_alt)} Cluster heute bereits, max. {rest} neue)")
     result = llm_json(prompt, model=model, temperature=0.2)
-    # Nur Artikel-IDs aus der Kandidatenliste zulassen (keine erfundenen IDs)
+    # Nur Artikel-IDs aus der Kandidatenliste zulassen (keine erfundenen/benutzten IDs)
     valid_ids = {i["id"] for i in top}
-    cluster = []
+    neu = []
     for c in result.get("cluster", []) if isinstance(result.get("cluster"), list) else []:
         if not isinstance(c, dict):
             continue
-        ids = [a for a in c.get("artikel_ids", []) if a in valid_ids][:3]
+        ids = [a for a in c.get("artikel_ids", []) if a in valid_ids and a not in benutzt][:3]
         if ids:
+            benutzt.update(ids)
             c["artikel_ids"] = ids
-            cluster.append(c)
-    result["cluster"] = cluster[:3]
-    out.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"KI0: {len(result['cluster'])} Cluster gewaehlt")
+            neu.append(c)
+    neu = neu[:min(3, rest)]
+    existing["cluster"] = cluster_alt + neu
+    existing.setdefault("laeufe", []).append({
+        "neue_cluster": len(neu),
+        "qualitaet_des_tages": result.get("qualitaet_des_tages"),
+        "abgelehnt_hauptgrund": result.get("abgelehnt_hauptgrund"),
+    })
+    out.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"KI0: {len(neu)} neue Cluster gewaehlt (heute gesamt {len(existing['cluster'])})")
 
 
 if __name__ == "__main__":
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
     cmd = sys.argv[1] if len(sys.argv) > 1 else "curate"
     if cmd == "curate":
         curate()

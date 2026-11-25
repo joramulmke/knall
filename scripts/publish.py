@@ -33,10 +33,14 @@ def unique_path(base):
 
 
 def main():
-    today = datetime.date.today().isoformat()
+    import sys
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from common import run_day, work_days
+    today = run_day()  # Veröffentlichungsdatum = heute, auch für Nachzügler von gestern
     (ROOT / "published").mkdir(exist_ok=True)
     count = 0
-    for dpath in sorted((ROOT / "drafts").glob(f"{today}-draft-*.json")):
+    dpaths = [p for day in work_days() for p in sorted((ROOT / "drafts").glob(f"{day}-draft-*.json"))]
+    for dpath in dpaths:
         draft = json.loads(dpath.read_text(encoding="utf-8"))
         if draft.get("stage") != "freigegeben":
             continue  # u. a. "veroeffentlicht" → nie doppelt
@@ -56,6 +60,8 @@ def main():
             "ki3_nachbesserung": bool(draft.get("ki3_nachbesserung")),
             "ki_generiert": True,
         }
+        if draft.get("tag") and draft["tag"] != today:
+            meta["entstanden"] = draft["tag"]
         # JSON-Werte sind gültiges YAML → keine kaputten Frontmatter durch ':' o. ä.
         frontmatter = "\n".join(f"{k}: {json.dumps(v, ensure_ascii=False)}" for k, v in meta.items())
         quellen_md = "\n".join(f"- [{q['titel'] or q['url']}]({q['url']})" for q in quellen if q.get("url"))
