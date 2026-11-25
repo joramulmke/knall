@@ -75,6 +75,7 @@ def fetch(feed_key, feed_def):
             "source_key": feed_key,
             "ressort": feed_def.get("ressort", "all"),
             "region": feed_def.get("region"),
+            "datum_vom_feed": feed_def.get("datum") == "feed",
             "url": link,                      # Feed-Link (bei Spiegeln: Google-Weiterleitung)
             "google_news": is_mirror,
             "medium": medium or None,

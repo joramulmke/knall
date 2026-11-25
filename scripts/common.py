@@ -41,7 +41,10 @@ def alter_tage(item, heute=None):
     """Alter einer Meldung in Tagen: Datum aus dem Originalartikel (trafilatura),
     sonst Feed-Datum. None, wenn keins bekannt ist."""
     ref = datetime.date.fromisoformat(heute or run_day())
-    for key in ("datum_original", "published_iso"):
+    # Gerichtsentscheidungen: Die Seite nennt das Entscheidungsdatum (oft Wochen
+    # zurück) — maßgeblich für "neu" ist die Veröffentlichung im Feed.
+    keys = ("published_iso",) if item.get("datum_vom_feed") else ("datum_original", "published_iso")
+    for key in keys:
         roh = str(item.get(key) or "")[:10]
         try:
             return (ref - datetime.date.fromisoformat(roh)).days

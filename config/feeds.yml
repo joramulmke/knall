@@ -209,6 +209,52 @@ definitions:
     region: sachsen
     ressort: lokal
 
+  # ---------- Bundesgerichte (rechtsprechung-im-internet.de) ----------
+  # 2026-11-25 ergänzt. Alter nach Feed-Datum (datum: feed), weil die Seite das
+  # oft Wochen zurückliegende Entscheidungsdatum trägt. Themenauswahl über den Score.
+  rii_bverfg:
+    type: nativ
+    name: "Bundesverfassungsgericht"
+    url: https://www.rechtsprechung-im-internet.de/jportal/docs/feed/bsjrs-bverfg.xml
+    datum: feed
+    ressort: alle-gleich
+  rii_bgh:
+    type: nativ
+    name: "Bundesgerichtshof"
+    url: https://www.rechtsprechung-im-internet.de/jportal/docs/feed/bsjrs-bgh.xml
+    datum: feed
+    ressort: woche
+  rii_bverwg:
+    type: nativ
+    name: "Bundesverwaltungsgericht"
+    url: https://www.rechtsprechung-im-internet.de/jportal/docs/feed/bsjrs-bverwg.xml
+    datum: feed
+    ressort: klima
+  rii_bfh:
+    type: nativ
+    name: "Bundesfinanzhof"
+    url: https://www.rechtsprechung-im-internet.de/jportal/docs/feed/bsjrs-bfh.xml
+    datum: feed
+    ressort: woche
+  rii_bag:
+    type: nativ
+    name: "Bundesarbeitsgericht"
+    url: https://www.rechtsprechung-im-internet.de/jportal/docs/feed/bsjrs-bag.xml
+    datum: feed
+    ressort: kohle
+  rii_bsg:
+    type: nativ
+    name: "Bundessozialgericht"
+    url: https://www.rechtsprechung-im-internet.de/jportal/docs/feed/bsjrs-bsg.xml
+    datum: feed
+    ressort: kohle
+  rii_bpatg:
+    type: nativ
+    name: "Bundespatentgericht"
+    url: https://www.rechtsprechung-im-internet.de/jportal/docs/feed/bsjrs-bpatg.xml
+    datum: feed
+    ressort: woche
+
 # --- Score-Gewichte (score.py) ---
 scores:
   keywords_kohle:

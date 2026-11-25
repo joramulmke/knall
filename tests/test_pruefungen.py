@@ -360,3 +360,12 @@ def test_groq_json_modus_nur_in_llm_json(monkeypatch, tmp_path):
     ki.llm_call("p", model="CHECK")
     assert bodies[0].get("response_format") == {"type": "json_object"}
     assert "response_format" not in bodies[1]
+
+
+def test_gerichtsfeeds_alter_nach_feed_datum():
+    from common import zu_alt
+    heute = "2026-11-25"
+    urteil = {"datum_original": "2026-09-01", "published_iso": "2026-11-24T10:00:00+00:00", "datum_vom_feed": True}
+    assert not zu_alt(urteil, heute)
+    urteil["datum_vom_feed"] = False
+    assert zu_alt(urteil, heute)
