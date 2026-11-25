@@ -5,10 +5,7 @@ on:
     - cron: '0 5 * * *'   # 05:00 UTC = 06:00 MEZ
   workflow_dispatch:
 
-permissions:
-  contents: write
-  pages: write
-  id-token: write
+permissions: {}   # Rechte pro Job, so knapp wie möglich
 
 concurrency:
   group: knall-daily
@@ -17,9 +14,34 @@ concurrency:
 jobs:
   pipeline:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # nur zum Committen der Pipeline-Ausgabe
     timeout-minutes: 60   # Free-Tier-Backoffs brauchen Puffer
     steps:
       - uses: actions/checkout@v4
+
+      # Vorarbeit des Tages (Teaser + Entwürfe) aus dem privaten Actions-Cache
+      # holen: ein erneuter Lauf macht dort weiter, wo der letzte abbrach.
+      # EIN Datum für den ganzen Lauf (auch wenn er über Mitternacht UTC läuft)
+      - name: Tag bestimmen
+        id: day
+        run: |
+          DAY=$(date -u +%F)
+          echo "day=$DAY" >> "$GITHUB_OUTPUT"
+          echo "yesterday=$(date -u -d "$DAY - 1 day" +%F)" >> "$GITHUB_OUTPUT"
+          echo "KNALL_DAY=$DAY" >> "$GITHUB_ENV"
+
+      - name: Vorarbeit wiederherstellen
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            sources
+            drafts
+          key: knall-work-${{ steps.day.outputs.day }}-${{ github.run_id }}-${{ github.run_attempt }}
+          # neuester Stand von heute; sonst der von gestern (offene Entwürfe fertig machen)
+          restore-keys: |
+            knall-work-${{ steps.day.outputs.day }}-
+            knall-work-${{ steps.day.outputs.yesterday }}-
 
       - uses: actions/setup-python@v5
         with:
@@ -27,6 +49,9 @@ jobs:
 
       - name: Install deps
         run: pip install pyyaml feedparser requests
+
+      - name: Aelteres als gestern aufraeumen (offene Reste → "abgelaufen")
+        run: python scripts/common.py prune
 
       - name: Collect feeds
         run: python scripts/collect.py
@@ -59,28 +84,59 @@ jobs:
         run: python scripts/router.py legal_stage
 
       - name: Publish
+        if: always()
         run: python scripts/publish.py
 
       - name: Update stats
+        if: always()
         run: python scripts/stats.py
 
+      - name: Build site
+        if: always()
+        run: python scripts/build_site.py
+
       - name: Commit pipeline output
+        if: always()
         run: |
           git config user.name "knall-bot"
           git config user.email "bot@knall.local"
-          git add -A sources drafts published rejected stats.json
-          git diff --cached --quiet || git commit -m "pipeline: $(date -u +%F)"
-          git push
+          git add -A published rejected stats.json site
+          git diff --cached --quiet && { echo "nichts zu committen"; exit 0; }
+          git commit -m "pipeline: $(date -u +%F)"
+          # main kann sich während des langen Laufs bewegt haben → rebase + retry
+          for i in 1 2 3 4; do
+            git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            echo "Push-Versuch $i fehlgeschlagen, neuer Versuch in $((i*10))s ..."
+            git rebase --abort 2>/dev/null || true
+            sleep $((i*10))
+          done
+          echo "::error::Push nach 4 Versuchen fehlgeschlagen"
+          exit 1
+
+      - name: Vorarbeit sichern (auch nach Abbruch)
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            sources
+            drafts
+          key: knall-work-${{ steps.day.outputs.day }}-${{ github.run_id }}-${{ github.run_attempt }}
 
   pages:
     needs: pipeline
     if: always() && needs.pipeline.result == 'success'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}   # neuester Stand inkl. Pipeline-Commit, nicht github.sha
       - name: Build site
         run: |
           mkdir -p _site

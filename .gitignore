@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+
+# Volle Entwürfe und Teaser nie öffentlich committen — liegen im privaten
+# Actions-Cache (Fortsetzung bei Abbruch), siehe daily.yml
+drafts/*
+!drafts/.gitkeep
+sources/*
+!sources/.gitkeep

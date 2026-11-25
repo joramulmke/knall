@@ -5,6 +5,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 concurrency:
   group: deploy-${{ github.event.repository.name }}
   cancel-in-progress: false
@@ -18,6 +21,42 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      # Host-Schlüssel "trust on first use": beim ersten Lauf per ssh-keyscan
+      # gemerkt (Actions-Cache, unveränderlich), danach strikt geprüft.
+      # Ändert sich der Schlüssel, bricht die Verbindung ab (möglicher MITM).
+      # Legitimer Wechsel beim Anbieter: Cache "sftp-hostkey-v1" unter
+      # Actions → Caches löschen, nächster Lauf merkt sich den neuen Schlüssel.
+      - name: Gemerkten SFTP-Host-Schluessel laden
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/hostkeys/sftp_known_hosts
+          key: sftp-hostkey-v1
+
+      - name: Setup SFTP host key
+        env:
+          SFTP_HOST: ${{ secrets.FTP_SERVER }}
+        run: |
+          mkdir -p ~/.ssh /tmp/hostkeys && chmod 700 ~/.ssh
+          F=/tmp/hostkeys/sftp_known_hosts
+          if [ -s "$F" ]; then
+            echo "Gemerkter SFTP-Host-Schluessel wird strikt geprueft."
+          else
+            echo "::warning::SFTP-Host-Schluessel noch nicht gemerkt (erster Lauf oder Cache abgelaufen) — wird jetzt per ssh-keyscan uebernommen und gemerkt."
+            ssh-keyscan -H -p 22 "$SFTP_HOST" > "$F" 2>/dev/null || true
+            if [ ! -s "$F" ]; then echo "::error::ssh-keyscan fuer SFTP fehlgeschlagen"; exit 1; fi
+            echo "NEW_SFTP_HOSTKEY=true" >> "$GITHUB_ENV"
+          fi
+          cat "$F" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          echo "Fingerprints:"; ssh-keygen -lf "$F" | awk '{print $1, $2, $4}'
+
+      - name: SFTP-Host-Schluessel merken
+        if: env.NEW_SFTP_HOSTKEY == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/hostkeys/sftp_known_hosts
+          key: sftp-hostkey-v1
 
       - name: Restore deploy-state cache
         id: restore_deploy_state_cache
@@ -44,6 +83,7 @@ jobs:
           SFTP_HOST: ${{ secrets.FTP_SERVER }}
           SFTP_USER: ${{ secrets.FTP_USERNAME }}
           SFTP_PASS: ${{ secrets.FTP_PASSWORD }}
+          SSHPASS: ${{ secrets.FTP_PASSWORD }}
           REMOTE_BASE: "JoramUlmke/${{ github.event.repository.name }}"
         run: |
           MARKER=""
@@ -56,7 +96,7 @@ jobs:
             echo "Cache miss, falling back to remote .deploy-state marker."
             rm -f /tmp/remote_deploy_state
             printf 'get %s/.deploy-state /tmp/remote_deploy_state\nbye\n' "$REMOTE_BASE" > /tmp/marker_batch.txt
-            sshpass -p "$SFTP_PASS" sftp -o StrictHostKeyChecking=no -o BatchMode=no -b /tmp/marker_batch.txt -P 22 "$SFTP_USER@$SFTP_HOST" 2>/tmp/marker_err.log || \
+            sshpass -e sftp -o StrictHostKeyChecking=yes -o BatchMode=no -b /tmp/marker_batch.txt -P 22 "$SFTP_USER@$SFTP_HOST" 2>/tmp/marker_err.log || \
               echo "::warning::Remote marker fetch failed: $(tail -n 3 /tmp/marker_err.log)"
             if [ -f /tmp/remote_deploy_state ]; then
               MARKER=$(tr -d '[:space:]' < /tmp/remote_deploy_state)
@@ -98,6 +138,7 @@ jobs:
           SFTP_HOST: ${{ secrets.FTP_SERVER }}
           SFTP_USER: ${{ secrets.FTP_USERNAME }}
           SFTP_PASS: ${{ secrets.FTP_PASSWORD }}
+          SSHPASS: ${{ secrets.FTP_PASSWORD }}
           REMOTE_BASE: "JoramUlmke/${{ github.event.repository.name }}"
         run: |
           # sftp glob-expands [, ], *, ? in batch-file paths, which breaks
@@ -116,7 +157,7 @@ jobs:
             echo "-get $REMOTE_BASE/$ESCAPED_F /tmp/remote_mirror/$ESCAPED_F" >> "$BATCH"
           done < <(git ls-files)
           echo "bye" >> "$BATCH"
-          sshpass -p "$SFTP_PASS" sftp -o StrictHostKeyChecking=no -o BatchMode=no -b "$BATCH" -P 22 "$SFTP_USER@$SFTP_HOST" || true
+          sshpass -e sftp -o StrictHostKeyChecking=yes -o BatchMode=no -b "$BATCH" -P 22 "$SFTP_USER@$SFTP_HOST" || true
 
           while IFS= read -r f; do
             LOCAL_HASH=$(sha256sum "$f" | awk '{print $1}')
@@ -167,11 +208,12 @@ jobs:
           SFTP_HOST: ${{ secrets.FTP_SERVER }}
           SFTP_USER: ${{ secrets.FTP_USERNAME }}
           SFTP_PASS: ${{ secrets.FTP_PASSWORD }}
+          SSHPASS: ${{ secrets.FTP_PASSWORD }}
           REMOTE_BASE: "JoramUlmke/${{ github.event.repository.name }}"
         run: |
           set +e
           REMOTE_FILES=$(lftp -u "$SFTP_USER,$SFTP_PASS" "sftp://$SFTP_HOST" \
-            -e "set sftp:connect-program 'ssh -a -x -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'; set net:timeout 15; set net:max-retries 2; find $REMOTE_BASE; quit" 2>/tmp/lftp_err.log)
+            -e "set sftp:connect-program 'ssh -a -x -o StrictHostKeyChecking=yes'; set net:timeout 15; set net:max-retries 2; find $REMOTE_BASE; quit" 2>/tmp/lftp_err.log)
           LFTP_STATUS=$?
           set -e
 
@@ -211,6 +253,7 @@ jobs:
           SFTP_HOST: ${{ secrets.FTP_SERVER }}
           SFTP_USER: ${{ secrets.FTP_USERNAME }}
           SFTP_PASS: ${{ secrets.FTP_PASSWORD }}
+          SSHPASS: ${{ secrets.FTP_PASSWORD }}
           REMOTE_BASE: "JoramUlmke/${{ github.event.repository.name }}"
         run: |
           if [ ! -s /tmp/changed_files.txt ]; then
@@ -246,8 +289,8 @@ jobs:
 
           MAX_ATTEMPTS=3
           attempt=1
-          until sshpass -p "$SFTP_PASS" sftp \
-            -o StrictHostKeyChecking=no \
+          until sshpass -e sftp \
+            -o StrictHostKeyChecking=yes \
             -o BatchMode=no \
             -b "$BATCH" \
             -P 22 \
@@ -282,6 +325,7 @@ jobs:
           SFTP_HOST: ${{ secrets.FTP_SERVER }}
           SFTP_USER: ${{ secrets.FTP_USERNAME }}
           SFTP_PASS: ${{ secrets.FTP_PASSWORD }}
+          SSHPASS: ${{ secrets.FTP_PASSWORD }}
           REMOTE_BASE: "JoramUlmke/${{ github.event.repository.name }}"
           AFTER: ${{ github.sha }}
         run: |
@@ -291,7 +335,7 @@ jobs:
           sleep 3
           MAX_ATTEMPTS=3
           attempt=1
-          until sshpass -p "$SFTP_PASS" sftp -o StrictHostKeyChecking=no -o BatchMode=no -b /tmp/record_batch.txt -P 22 "$SFTP_USER@$SFTP_HOST"
+          until sshpass -e sftp -o StrictHostKeyChecking=yes -o BatchMode=no -b /tmp/record_batch.txt -P 22 "$SFTP_USER@$SFTP_HOST"
           do
             if [ "$attempt" -ge "$MAX_ATTEMPTS" ]; then
               echo "::warning::Recording deploy state on remote failed after $MAX_ATTEMPTS attempts (non-fatal — deploy-state cache is primary)."
@@ -323,16 +367,45 @@ jobs:
           fi
 
       - name: Setup SSH agent
-        uses: webfactory/ssh-agent@v0.9.0
+        uses: webfactory/ssh-agent@dc588b651fe13675774614f8e6a936a468676387 # v0.9.0
         with:
           ssh-private-key: ${{ secrets.MIRROR_SSH_KEY }}
 
-      - name: Add mirror host key
+      # Host-Schlüssel "trust on first use": beim ersten Lauf per ssh-keyscan
+      # gemerkt (Actions-Cache, unveränderlich), danach strikt geprüft.
+      # Ändert sich der Schlüssel, bricht die Verbindung ab (möglicher MITM).
+      # Legitimer Wechsel beim Anbieter: Cache "mirror-hostkey-v1" unter
+      # Actions → Caches löschen, nächster Lauf merkt sich den neuen Schlüssel.
+      - name: Gemerkten Mirror-Host-Schluessel laden
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/hostkeys/mirror_known_hosts
+          key: mirror-hostkey-v1
+
+      - name: Setup Mirror host key
         env:
           MIRROR_HOST: ${{ secrets.MIRROR_HOST }}
         run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan "$MIRROR_HOST" >> ~/.ssh/known_hosts
+          mkdir -p ~/.ssh /tmp/hostkeys && chmod 700 ~/.ssh
+          F=/tmp/hostkeys/mirror_known_hosts
+          if [ -s "$F" ]; then
+            echo "Gemerkter Mirror-Host-Schluessel wird strikt geprueft."
+          else
+            echo "::warning::Mirror-Host-Schluessel noch nicht gemerkt (erster Lauf oder Cache abgelaufen) — wird jetzt per ssh-keyscan uebernommen und gemerkt."
+            ssh-keyscan -H "$MIRROR_HOST" > "$F" 2>/dev/null || true
+            if [ ! -s "$F" ]; then echo "::error::ssh-keyscan fuer Mirror fehlgeschlagen"; exit 1; fi
+            echo "NEW_MIRROR_HOSTKEY=true" >> "$GITHUB_ENV"
+          fi
+          cat "$F" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          echo "Fingerprints:"; ssh-keygen -lf "$F" | awk '{print $1, $2, $4}'
+
+      - name: Mirror-Host-Schluessel merken
+        if: env.NEW_MIRROR_HOSTKEY == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/hostkeys/mirror_known_hosts
+          key: mirror-hostkey-v1
 
       - name: Push snapshot (no history)
         env:
