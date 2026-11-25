@@ -10,7 +10,7 @@
   ],
   "quellen_verworfen": 0,
   "ablehnungsgruende": [
-    "technischer Fehler in write (wird wiederholt): LLM-Aufruf: Warte-Budget erschoepft. Letzter Fehler: HTTP 429 fuer '…': {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"inclu"
+    "technischer Fehler in write (wird wiederholt): Free-Tier-Tageslimit"
   ],
   "abbruch": true,
   "gelb_erschoepft": false,
