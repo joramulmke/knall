@@ -17,7 +17,7 @@ concurrency:
 jobs:
   pipeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
@@ -46,14 +46,11 @@ jobs:
           KI_MODEL_LARGE: ${{ vars.KI_MODEL_LARGE }}
         run: python scripts/router.py write_stage
 
-      - name: KI2 check
+      - name: KI2 pruefen + Routing (Loop)
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           KI_MODEL_LARGE: ${{ vars.KI_MODEL_LARGE }}
-        run: python scripts/router.py check_stage
-
-      - name: Special checks + route
-        run: python scripts/router.py route_stage
+        run: python scripts/router.py evaluate_stage
 
       - name: KI3 legal
         env:
