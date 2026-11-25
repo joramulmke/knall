@@ -180,8 +180,7 @@ def test_groq_tageslimit_faellt_auf_openrouter_zurueck(monkeypatch, tmp_path):
         return "ok"
     monkeypatch.setattr(ki, "_post_once", post)
     assert ki.llm_call("p", model="CHECK") == "ok"      # kein QuotaExhausted
-    assert aufrufe == ["groq:openai/gpt-oss-120b", "groq:openai/gpt-oss-20b",
-                       "groq:llama-3.3-70b-versatile", ki.DEFAULT_CHECK]
+    assert aufrufe == ["groq:openai/gpt-oss-120b", "groq:openai/gpt-oss-20b", ki.DEFAULT_CHECK]
     assert schlaf == []
     assert ki.gesperrt("groq:openai/gpt-oss-120b")
 
@@ -300,3 +299,28 @@ def test_alte_meldungen_werden_aussortiert():
     # Datum aus dem Artikel schlägt Feed-Datum
     assert zu_alt({"datum_original": "2026-03-10", "published_iso": "2026-11-25T08:00:00+00:00"}, heute)
     assert not zu_alt({}, heute)                # unbekannt → nicht aussortieren
+
+
+def test_ki1_schreibt_nie_mit_kleinem_groq_modell(monkeypatch, tmp_path):
+    ki, _, _ = _ki_setup(monkeypatch, tmp_path)
+    monkeypatch.setenv("GROQ_API_KEY", "g")
+    assert "groq:openai/gpt-oss-20b" not in ki.groq_modelle(schreiben=True)
+    assert "groq:openai/gpt-oss-20b" in ki.groq_modelle()
+
+
+def test_groq_minutenlimit_sperrt_nur_kurz(monkeypatch, tmp_path):
+    import io
+    import time as _t
+    import urllib.error
+    ki, _, _ = _ki_setup(monkeypatch, tmp_path)
+    monkeypatch.setenv("GROQ_API_KEY", "g")
+    monkeypatch.setattr(ki, "available_groq_models", lambda: None)
+
+    def post(model, *a):
+        if model == "groq:openai/gpt-oss-120b":
+            raise urllib.error.HTTPError("u", 429, "tpm", {}, io.BytesIO(b"TPM. Please try again in 3s."))
+        return "ok"
+    monkeypatch.setattr(ki, "_post_once", post)
+    ki.llm_call("p", model="CHECK")
+    bis = ki.zaehler()["gesperrt_bis"]["groq:openai/gpt-oss-120b"]
+    assert bis - _t.time() <= 95

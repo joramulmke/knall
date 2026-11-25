@@ -61,8 +61,10 @@ DEFAULT_CHECK = "nvidia/nemotron-3.5-lightning:free"
 DEFAULT_CHECK_GROQ = "groq:openai/gpt-oss-120b"
 # Groq-Ersatz für KI0/KI1 und zweite Groq-Prüferin. Nicht (mehr) angebotene
 # Modelle fallen über die Groq-Modellliste automatisch heraus.
-DEFAULT_GROQ_MODELS = ["groq:openai/gpt-oss-120b", "groq:openai/gpt-oss-20b",
-                       "groq:llama-3.3-70b-versatile"]
+# Prüfen/Auswählen (KI0, KI2, KI3): großes Modell, kleines als Reserve.
+DEFAULT_GROQ_MODELS = ["groq:openai/gpt-oss-120b", "groq:openai/gpt-oss-20b"]
+# Schreiben (KI1): nur große Modelle — das kleine schrieb im Test ungenau.
+DEFAULT_GROQ_SCHREIBER = ["groq:openai/gpt-oss-120b", "groq:qwen/qwen3.8-27b"]
 GROQ_TPM_VERSUCHE = 3            # Token-pro-Minute-Limit: so oft die genannte Wartezeit abwarten
 GROQ_TPM_MAX_WARTEN = 65
 GROQ = "groq:"
@@ -209,12 +211,13 @@ def available_free_models():
 _GROQ_AVAILABLE = None
 
 
-def groq_modelle():
+def groq_modelle(schreiben=False):
     if not os.environ.get("GROQ_API_KEY"):
         return []
-    raw = os.environ.get("KI_GROQ_MODELS", "")
+    raw = os.environ.get("KI_GROQ_SCHREIBER" if schreiben else "KI_GROQ_MODELS", "")
     eigene = [m.strip() for m in raw.split(",") if m.strip()]
-    return [m if ist_groq(m) else GROQ + m for m in eigene] or list(DEFAULT_GROQ_MODELS)
+    default = DEFAULT_GROQ_SCHREIBER if schreiben else DEFAULT_GROQ_MODELS
+    return [m if ist_groq(m) else GROQ + m for m in eigene] or list(default)
 
 
 def available_groq_models():
@@ -319,6 +322,8 @@ def _post_groq(model, prompt, max_tokens, temperature):
     }
     if "gpt-oss" in name:        # Reasoning-Modell: wenig denken
         body["reasoning_effort"] = "low"
+    elif "qwen" in name:         # Denktext nicht in die Antwort (sonst <think>…)
+        body["reasoning_format"] = "hidden"
     return _senden("https://api.groq.com/openai/v1/chat/completions", key,
                    json.dumps(body).encode(), model)
 
@@ -359,7 +364,7 @@ def llm_call(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.3)
     """Ruft LLM auf. 429/leere Antwort: kurzes Backoff, dann nächstes :free-Modell.
     Tageslimit → QuotaExhausted sofort. 401/402/403 → sofort Abbruch."""
     primary = resolve_model(model)
-    groq = groq_modelle()
+    groq = groq_modelle(schreiben=(model == "LARGE"))
     if model == "CHECK":
         # Groq-Prüferin(nen) → Nemotron → Schreib-Modell; ohne Groq: Nemotron → Schreib-Modell
         backup = groq + [DEFAULT_CHECK, resolve_model("LARGE")]
@@ -416,7 +421,9 @@ def llm_call(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.3)
                         w = min(GROQ_TPM_MAX_WARTEN, int(float(m.group(1))) + 2)
                         plan = [w] * GROQ_TPM_VERSUCHE
                     if attempt > len(plan):
-                        sperre_modell(chain_model)
+                        # Minutenlimit ist nach gut einer Minute wieder frei —
+                        # das große Modell nicht 10 Minuten nach hinten stellen.
+                        sperre_modell(chain_model, 90 if m else None)
                 elif exc.code in (401, 402, 403):
                     raise RuntimeError(f"OpenRouter HTTP {exc.code} (Auth/Konto): {body}") from exc
                 elif exc.code in (400, 404, 410, 422):
