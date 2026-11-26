@@ -41,6 +41,11 @@ v8 (zweiter Anbieter Groq):
   weiter mit OpenRouter. Kein Abbruch der Stufe.
 - KI0/KI1: Groq steht direkt hinter Gemma (vor Nemotron/ERNIE/Ling, die bei
   langen Prompts oft leer antworten). Modelle: KI_GROQ_MODELS (kommagetrennt).
+
+v9 (Groq zuerst):
+- Ist GROQ_API_KEY gesetzt, laufen auch KI0 und KI1 zuerst über Groq. Die
+  OpenRouter-Modelle (Gemma, dann Fallbacks) folgen erst danach — die
+  Gratis-Modelle dort waren fast immer gedrosselt (429).
 """
 import os
 import re
@@ -433,9 +438,11 @@ def llm_call(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.3)
     if model == "CHECK":
         # Groq-Prüferin(nen) → Nemotron → Schreib-Modell; ohne Groq: Nemotron → Schreib-Modell
         backup = groq + [DEFAULT_CHECK, resolve_model("LARGE")]
+    elif groq:
+        # KI0/KI1: Groq zuerst, danach Gemma und die OpenRouter-Fallbacks
+        primary, backup = groq[0], groq[1:] + [primary]
     else:
-        # KI0/KI1: Gemma → Groq → OpenRouter-Fallbacks
-        backup = groq
+        backup = []
     chain = model_chain(primary, backup)
     last_error = None
     waited = 0

@@ -193,7 +193,7 @@ def test_ohne_groq_key_bleibt_nemotron_pruefer(monkeypatch, tmp_path):
     assert not any(ki.ist_groq(m) for m in ki.model_chain("groq:x", None))
 
 
-def test_ki1_kette_gemma_dann_groq(monkeypatch, tmp_path):
+def test_ki1_kette_groq_dann_gemma(monkeypatch, tmp_path):
     ki, _, err429 = _ki_setup(monkeypatch, tmp_path)
     monkeypatch.setenv("GROQ_API_KEY", "g")
     monkeypatch.delenv("KI_MODEL_LARGE", raising=False)
@@ -202,15 +202,27 @@ def test_ki1_kette_gemma_dann_groq(monkeypatch, tmp_path):
 
     def post(model, *a):
         aufrufe.append(model)
-        if model == ki.DEFAULT_LARGE:
+        if ki.ist_groq(model):
             raise err429(model)
         return "text"
     monkeypatch.setattr(ki, "_post_once", post)
     assert ki.llm_call("p", model="LARGE") == "text"
-    assert aufrufe == [ki.DEFAULT_LARGE, ki.DEFAULT_LARGE, "groq:openai/gpt-oss-120b"]
+    # Groq zuerst (je 1 kurzer Wiederholversuch), erst danach OpenRouter-Gemma
+    assert [m for m in aufrufe if ki.ist_groq(m)] == aufrufe[:len(aufrufe) - 1]
+    assert aufrufe[0] == "groq:openai/gpt-oss-120b" and aufrufe[-1] == ki.DEFAULT_LARGE
 
 
-def test_openrouter_tageslimit_weiter_mit_groq(monkeypatch, tmp_path):
+def test_ki0_kette_groq_zuerst(monkeypatch, tmp_path):
+    ki, _, _ = _ki_setup(monkeypatch, tmp_path)
+    monkeypatch.setenv("GROQ_API_KEY", "g")
+    monkeypatch.delenv("KI_MODEL_SMALL", raising=False)
+    monkeypatch.setattr(ki, "available_groq_models", lambda: None)
+    aufrufe = []
+    monkeypatch.setattr(ki, "_post_once", lambda model, *a: aufrufe.append(model) or "ok")
+    assert ki.llm_call("p", model="SMALL") == "ok" and aufrufe == ["groq:openai/gpt-oss-120b"]
+
+
+def test_groq_tageslimit_weiter_mit_openrouter(monkeypatch, tmp_path):
     import io
     import urllib.error
     ki, _, _ = _ki_setup(monkeypatch, tmp_path)
@@ -221,12 +233,14 @@ def test_openrouter_tageslimit_weiter_mit_groq(monkeypatch, tmp_path):
 
     def post(model, *a):
         aufrufe.append(model)
-        if not ki.ist_groq(model):
-            raise urllib.error.HTTPError("u", 429, "q", {}, io.BytesIO(b"free-models-per-day exceeded"))
+        if ki.ist_groq(model):
+            raise urllib.error.HTTPError("u", 429, "q", {}, io.BytesIO(
+                b"Rate limit reached for model on tokens per day (TPD)"))
         return "text"
     monkeypatch.setattr(ki, "_post_once", post)
     assert ki.llm_call("p", model="LARGE") == "text"
-    assert aufrufe == [ki.DEFAULT_LARGE, "groq:openai/gpt-oss-120b"]
+    # Groq-Tageslimit (pro Modell): jedes Groq-Modell nur einmal, dann OpenRouter-Gemma
+    assert aufrufe == ["groq:openai/gpt-oss-120b", "groq:qwen/qwen3.8-27b", ki.DEFAULT_LARGE]
 
 
 def test_eigener_zaehler_voll_aber_groq_frei(monkeypatch, tmp_path):
