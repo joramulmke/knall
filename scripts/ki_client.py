@@ -72,6 +72,11 @@ GROQ_TAGESLIMIT = int(os.environ.get("KNALL_GROQ_TAGESLIMIT") or 900)
 # Eigene Kennung: Groq (Cloudflare) sperrt die Python-Standardkennung
 # "Python-urllib" mit HTTP 403 / "error code: 1010".
 USER_AGENT = "knall-pipeline/1.0"
+# Vorab-Drosselung: Groq meldet in jeder Antwort, wie viele Token im
+# laufenden Minutenfenster noch frei sind. Reicht das für die nächste Anfrage
+# nicht, warten wir vorher, statt in eine 429 zu laufen.
+GROQ_TPM_PUFFER = 800            # geschätzte Antwort-/Reasoning-Token zusätzlich zum Prompt
+GROQ_ZEICHEN_PRO_TOKEN = 3       # grobe Schätzung für deutschen Text
 GROQ_MAX_TOKENS = 3500           # Groq-Gratis: kleines Token-pro-Minute-Limit; 2500 schnitt KI2-JSON ab
 _JSON_MODUS = False              # von llm_json gesetzt → Groq liefert garantiert ein JSON-Objekt
 
@@ -313,6 +318,7 @@ def _post_groq(model, prompt, max_tokens, temperature):
         raise GroqUebersprungen("GROQ_API_KEY fehlt")
     if groq_rest() <= 0:
         raise GroqUebersprungen(f"Groq-Tageszaehler: {GROQ_TAGESLIMIT} Anfragen erreicht")
+    _warte_auf_groq_fenster(model, prompt)
     _zaehle("anfragen", model, groq=True)
     name = model[len(GROQ):]
     body = {
@@ -342,6 +348,8 @@ def _senden(url, key, payload, model):
         },
     )
     with urllib.request.urlopen(req, timeout=180) as resp:
+        if ist_groq(model):
+            _merke_groq_fenster(model, getattr(resp, "headers", None) or {})
         data = json.loads(resp.read())
     if data.get("error"):
         raise EmptyResponse(f"{model} lieferte Fehlerobjekt: {str(data['error'])[:300]}")
@@ -356,6 +364,60 @@ def _senden(url, key, payload, model):
             f"prompt={usage.get('prompt_tokens')}, completion={usage.get('completion_tokens')}, "
             f"reasoning_zeichen={len(str(reasoning))})")
     return str(content)
+
+
+def _dauer_s(wert):
+    """Groq-Zeitangabe wie "7.66s", "1m2.5s" oder "350ms" → Sekunden."""
+    wert = str(wert or "").strip()
+    if not wert:
+        return None
+    if wert.endswith("ms"):
+        try:
+            return float(wert[:-2]) / 1000
+        except ValueError:
+            return None
+    m = re.fullmatch(r"(?:(\d+)h)?(?:(\d+)m)?(?:([\d.]+)s)?", wert)
+    if not m or not any(m.groups()):
+        return None
+    h, mi, s = m.groups()
+    return int(h or 0) * 3600 + int(mi or 0) * 60 + float(s or 0)
+
+
+def _merke_groq_fenster(model, headers):
+    """Freie Token im Minutenfenster und Zeitpunkt der Erneuerung merken
+    (gilt über Stufen hinweg, daher im Tageszähler)."""
+    try:
+        rest = int(headers.get("x-ratelimit-remaining-tokens"))
+    except (TypeError, ValueError):
+        return
+    reset = _dauer_s(headers.get("x-ratelimit-reset-tokens"))
+    z = zaehler()
+    z.setdefault("groq_fenster", {})[model] = {
+        "rest": rest,
+        "frei_ab": round(time.time() + (reset or 60), 1),
+    }
+    f = _zaehler_pfad()
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(json.dumps(z, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def groq_wartezeit(model, prompt, jetzt=None):
+    """Sekunden, die vor der nächsten Groq-Anfrage zu warten sind (0 = sofort)."""
+    fenster = zaehler().get("groq_fenster", {}).get(model)
+    if not fenster:
+        return 0
+    jetzt = time.time() if jetzt is None else jetzt
+    bedarf = len(prompt) // GROQ_ZEICHEN_PRO_TOKEN + GROQ_TPM_PUFFER
+    if fenster.get("rest", 0) >= bedarf or fenster.get("frei_ab", 0) <= jetzt:
+        return 0
+    return min(GROQ_TPM_MAX_WARTEN, fenster["frei_ab"] - jetzt + 1)
+
+
+def _warte_auf_groq_fenster(model, prompt):
+    w = groq_wartezeit(model, prompt)
+    if w > 0:
+        print(f"  Groq-Minutenlimit fast erreicht ({model}) — warte {w:.0f} s")
+        time.sleep(w)
 
 
 def _is_daily_quota(body):
@@ -496,6 +558,82 @@ def llm_json(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.0)
     raise RuntimeError("LLM hat 3x kein valides JSON geliefert")
 
 
+# ---------- Maschinelle Cluster-Prüfung (nach KI0) ----------
+# KI0 hängte mitunter fremde Artikel an ein Thema („Weihnachten im Kerzenschein“
+# als Zweitquelle zum Heizungsausfall). Deshalb werden die Kandidaten VOR KI0
+# maschinell zu Themengruppen gebündelt: Ein Artikel kommt nur dann zur Gruppe,
+# wenn er mit deren Hauptquelle genug gemeinsame Ankerwörter hat (Namen, Orte,
+# Sachwörter, Zahlen). KI0 darf nur innerhalb einer Gruppe bündeln.
+# Kein Modell, keine Anfrage — reine Wortüberschneidung.
+CLUSTER_MIN_ANKER = 3
+ANKER_MIN_LAENGE = 6             # kurze Wörter sind zu unspezifisch
+ANKER_STAMM = 7                  # grober Stamm: „Heizungsausfall“ ~ „Heizungen“ nicht, „Festnahmen“ ~ „Festnahme“ ja
+ANKER_STOPP = {
+    "werden", "worden", "wurden", "hatten", "zwischen", "sollen", "sollte", "können", "könnte",
+    "müssen", "dieser", "dieses", "diesen", "seinen", "seiner", "ihrer", "ihren", "einmal",
+    "bereits", "weiter", "weitere", "weiteren", "wieder", "gegenüber", "während", "nachdem",
+    "allerdings", "deshalb", "außerdem", "darüber", "dagegen", "jedoch", "sowie", "etwa",
+    "gestern", "morgen", "derzeit", "aktuell", "inzwischen", "erklärte", "erklärt", "berichtet",
+    "berichtete", "sagte", "mitteilte", "teilte", "zufolge", "angaben", "prozent", "millionen",
+    "milliarden", "deutschland", "deutschen", "deutsche", "menschen", "jahren", "januar",
+    "februar", "august", "september", "oktober", "november", "dezember", "montag", "dienstag",
+    "mittwoch", "donnerstag", "freitag", "samstag", "sonntag", "artikel", "weiterlesen",
+}
+
+
+def anker(text):
+    """Menge grober Wortstämme (≥ ANKER_MIN_LAENGE Zeichen) plus Zahlen ≥ 2 Stellen."""
+    t = str(text or "").lower()
+    worte = re.findall(r"[a-zäöüß]+", t)
+    stamm = {w[:ANKER_STAMM] for w in worte if len(w) >= ANKER_MIN_LAENGE and w not in ANKER_STOPP}
+    zahlen = set(re.findall(r"\d[\d.,]*\d", t))
+    return stamm | zahlen
+
+
+def passt_zum_thema(haupt, zweit):
+    """→ (passt, gemeinsame Anker). haupt/zweit: Text aus Titel + Auszug."""
+    gemeinsam = anker(haupt) & anker(zweit)
+    return len(gemeinsam) >= CLUSTER_MIN_ANKER, gemeinsam
+
+
+def _kandidat_text(item):
+    return f"{item.get('title', '')} {(item.get('volltext') or item.get('summary') or '')[:1500]}"
+
+
+def gruppieren(items):
+    """Kandidaten (nach Score sortiert) → {id: gruppen_nr}. Jede Gruppe startet
+    mit ihrer stärksten Quelle; spätere Artikel schließen sich der ersten
+    Gruppe an, mit deren Hauptquelle sie genug Anker teilen."""
+    koepfe = []                  # (gruppen_nr, anker der Hauptquelle)
+    gruppe = {}
+    for item in items:
+        a = anker(_kandidat_text(item))
+        for nr, kopf in koepfe:
+            if len(a & kopf) >= CLUSTER_MIN_ANKER:
+                gruppe[item["id"]] = nr
+                break
+        else:
+            nr = len(koepfe) + 1
+            koepfe.append((nr, a))
+            gruppe[item["id"]] = nr
+    return gruppe
+
+
+def cluster_auf_gruppe(ids, gruppe, titel=None):
+    """Nur IDs aus der Gruppe der ersten ID behalten (Sicherung, falls KI0
+    sich nicht an die Gruppen hält)."""
+    if not ids:
+        return ids
+    g = gruppe.get(ids[0])
+    behalten = [i for i in ids if gruppe.get(i) == g]
+    for i in ids:
+        if i not in behalten:
+            print(f"  Cluster-Pruefung: '{(titel or {}).get(i, i)[:70]}' gehoert zu Gruppe "
+                  f"{gruppe.get(i)}, nicht {g} — entfernt")
+    return behalten
+
+
+
 def curate():
     """KI0 wählt 1–3 Cluster aus den heutigen Teasern.
 
@@ -557,11 +695,16 @@ def curate():
               f"(mind. {MIN_BUDGET_NEUER_ARTIKEL} fuer einen neuen Artikel noetig)")
         return
 
+    gruppe = gruppieren(top)
+    mehrfach = sum(1 for g in set(gruppe.values()) if list(gruppe.values()).count(g) > 1)
+    print(f"Themengruppen: {len(set(gruppe.values()))} (davon {mehrfach} mit mehreren Quellen)")
+    top.sort(key=lambda x: (gruppe[x["id"]], -(x.get("score") or 0)))
     bereits = [c.get("thema") for day in (prev_day(), today) for c in (load(day).get("cluster") or []) if c.get("thema")]
     listing = []
     for item in top:
         listing.append({
             "id": item["id"],
+            "gruppe": gruppe[item["id"]],
             "quelle": item["source_key"],
             "ressort": item.get("ressort_detected"),
             "titel": item["title"],
@@ -582,6 +725,7 @@ def curate():
         if not isinstance(c, dict):
             continue
         ids = [a for a in c.get("artikel_ids", []) if a in valid_ids and a not in benutzt][:3]
+        ids = cluster_auf_gruppe(ids, gruppe, {i["id"]: i.get("title", "") for i in top})
         if ids:
             benutzt.update(ids)
             c["artikel_ids"] = ids

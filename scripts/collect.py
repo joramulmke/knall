@@ -6,6 +6,7 @@ Google-News-Spiegeln) holt danach fulltext.py — nur für die besten Kandidaten
 """
 import json
 import hashlib
+import socket
 import datetime
 import pathlib
 import yaml
@@ -21,6 +22,9 @@ CONFIG = yaml.safe_load((ROOT / "config" / "feeds.yml").read_text(encoding="utf-
 DAY = run_day()
 OUT = ROOT / "sources" / DAY
 OUT.mkdir(parents=True, exist_ok=True)
+# feedparser kennt keinen eigenen Timeout. Ohne diese Grenze hängt ein
+# blockierender Server pro Feed gut 2 Minuten im TCP-Timeout.
+FEED_TIMEOUT = 15
 
 
 def item_id(url):
@@ -102,6 +106,7 @@ def _iso(t):
 
 
 def main():
+    socket.setdefaulttimeout(FEED_TIMEOUT)
     total = 0
     for key, fdef in CONFIG.get("definitions", {}).items():
         try:
