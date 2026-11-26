@@ -193,7 +193,7 @@ def test_ohne_groq_key_bleibt_nemotron_pruefer(monkeypatch, tmp_path):
     assert not any(ki.ist_groq(m) for m in ki.model_chain("groq:x", None))
 
 
-def test_ki1_kette_gemma_dann_groq(monkeypatch, tmp_path):
+def test_ki1_kette_groq_dann_gemma(monkeypatch, tmp_path):
     ki, _, err429 = _ki_setup(monkeypatch, tmp_path)
     monkeypatch.setenv("GROQ_API_KEY", "g")
     monkeypatch.delenv("KI_MODEL_LARGE", raising=False)
@@ -202,15 +202,27 @@ def test_ki1_kette_gemma_dann_groq(monkeypatch, tmp_path):
 
     def post(model, *a):
         aufrufe.append(model)
-        if model == ki.DEFAULT_LARGE:
+        if ki.ist_groq(model):
             raise err429(model)
         return "text"
     monkeypatch.setattr(ki, "_post_once", post)
     assert ki.llm_call("p", model="LARGE") == "text"
-    assert aufrufe == [ki.DEFAULT_LARGE, ki.DEFAULT_LARGE, "groq:openai/gpt-oss-120b"]
+    # Groq zuerst (je 1 kurzer Wiederholversuch), erst danach OpenRouter-Gemma
+    assert [m for m in aufrufe if ki.ist_groq(m)] == aufrufe[:len(aufrufe) - 1]
+    assert aufrufe[0] == "groq:openai/gpt-oss-120b" and aufrufe[-1] == ki.DEFAULT_LARGE
 
 
-def test_openrouter_tageslimit_weiter_mit_groq(monkeypatch, tmp_path):
+def test_ki0_kette_groq_zuerst(monkeypatch, tmp_path):
+    ki, _, _ = _ki_setup(monkeypatch, tmp_path)
+    monkeypatch.setenv("GROQ_API_KEY", "g")
+    monkeypatch.delenv("KI_MODEL_SMALL", raising=False)
+    monkeypatch.setattr(ki, "available_groq_models", lambda: None)
+    aufrufe = []
+    monkeypatch.setattr(ki, "_post_once", lambda model, *a: aufrufe.append(model) or "ok")
+    assert ki.llm_call("p", model="SMALL") == "ok" and aufrufe == ["groq:openai/gpt-oss-120b"]
+
+
+def test_groq_tageslimit_weiter_mit_openrouter(monkeypatch, tmp_path):
     import io
     import urllib.error
     ki, _, _ = _ki_setup(monkeypatch, tmp_path)
@@ -221,12 +233,14 @@ def test_openrouter_tageslimit_weiter_mit_groq(monkeypatch, tmp_path):
 
     def post(model, *a):
         aufrufe.append(model)
-        if not ki.ist_groq(model):
-            raise urllib.error.HTTPError("u", 429, "q", {}, io.BytesIO(b"free-models-per-day exceeded"))
+        if ki.ist_groq(model):
+            raise urllib.error.HTTPError("u", 429, "q", {}, io.BytesIO(
+                b"Rate limit reached for model on tokens per day (TPD)"))
         return "text"
     monkeypatch.setattr(ki, "_post_once", post)
     assert ki.llm_call("p", model="LARGE") == "text"
-    assert aufrufe == [ki.DEFAULT_LARGE, "groq:openai/gpt-oss-120b"]
+    # Groq-Tageslimit (pro Modell): jedes Groq-Modell nur einmal, dann OpenRouter-Gemma
+    assert aufrufe == ["groq:openai/gpt-oss-120b", "groq:qwen/qwen3.8-27b", ki.DEFAULT_LARGE]
 
 
 def test_eigener_zaehler_voll_aber_groq_frei(monkeypatch, tmp_path):
@@ -469,10 +483,15 @@ def _evaluate_setup(monkeypatch, ampeln):
         a = next(folge)
         return a, (_rot_prot() if a == "rot" else {"saetze": []}), []
 
-    def ki1(prompt, model=None):
+    def ki1(prompt, model=None, **kw):
         aufrufe["ki1"] += 1
         assert "beanstandet" in prompt and "Erfunden." in prompt
         return "Neu"
+
+    def ki1_satzweise(prompt, model=None, **kw):
+        # Artikel "Alt" enthält den roten Satz nicht → Rückfall auf Gesamtkorrektur
+        aufrufe["ki1_json"] = aufrufe.get("ki1_json", 0) + 1
+        return {"ersetzungen": [{"nr": 1, "neu": "Belegt."}]}
 
     monkeypatch.setattr(router, "load_drafts", lambda: [("2026-01-01", path, draft)])
     monkeypatch.setattr(router, "sources_from_cluster", lambda c, t: ("Q", [], []))
@@ -481,6 +500,7 @@ def _evaluate_setup(monkeypatch, ampeln):
     monkeypatch.setattr(router, "write_json", lambda p, o: None)
     monkeypatch.setattr(router, "reject", lambda t, n, d, g: aufrufe.update(abgelehnt=g))
     monkeypatch.setattr(ki_client, "llm_call", ki1)
+    monkeypatch.setattr(ki_client, "llm_json", ki1_satzweise)
     monkeypatch.setattr(special_checks, "run_all", lambda t, q: {"bestaende": True})
     router.evaluate_stage()
     return draft, aufrufe
@@ -492,6 +512,77 @@ def test_rot_bekommt_eine_ki1_korrektur_dann_gruen(monkeypatch):
     assert draft["ki2_pruefrunden"] == 2 and aufrufe["abgelehnt"] is None
 
 
-def test_rot_nach_korrektur_wird_abgelehnt(monkeypatch):
-    draft, aufrufe = _evaluate_setup(monkeypatch, ["rot", "rot"])
-    assert aufrufe["ki1"] == 1 and aufrufe["abgelehnt"] == "KI2 rot/gelb-erschoepft"
+def test_rot_nach_zwei_korrekturen_wird_abgelehnt(monkeypatch):
+    draft, aufrufe = _evaluate_setup(monkeypatch, ["rot", "rot", "rot"])
+    assert aufrufe["ki1"] == 2 and aufrufe["abgelehnt"] == "KI2 rot/gelb-erschoepft"
+    assert [k["modus"] for k in draft["rot_korrekturen"]] == ["gesamt", "gesamt"]
+
+
+ARTIKEL_ROT = (
+    "Amazon lügt Beschäftigte an\n"
+    "Bei Amazon streiken 500 Beschäftigte. Die Gewerkschaft fordert einen Tarifvertrag.\n\n"
+    "Der Konzern lehnt Gespräche ab. Solange Amazon lügt, drohen weitere Angriffe."
+)
+
+
+def test_rot_stellen_aus_protokoll():
+    from router import rot_stellen
+    prot = {"ampel": "rot", "titel_befund": "rot", "systemfehler": None, "saetze": [
+        {"satz_nr": 0, "text": "Amazon lügt Beschäftigte an", "befund": "rot",
+         "verstoesse": [{"pruefposten": "P9", "erklaerung": "Lüge nicht belegt"}]},
+        {"satz_nr": 1, "text": "x", "befund": "ok", "verstoesse": []},
+        {"satz_nr": 4, "text": "Solange Amazon lügt, drohen weitere Angriffe.", "befund": "rot",
+         "verstoesse": [{"pruefposten": "P6", "erklaerung": "Prognose"}]}]}
+    st = rot_stellen(prot, [])
+    assert [s["nr"] for s in st] == [0, 4] and "P9" in st[0]["gruende"]
+    assert rot_stellen({"systemfehler": "kaputt", "saetze": []}, []) is None
+    assert rot_stellen(prot, ["Protokoll unvollständig"]) is None
+
+
+def test_satzweise_ersetzen_aendert_nur_beanstandetes():
+    from router import satzweise_ersetzen
+    stellen = [{"nr": 0, "text": "Amazon lügt Beschäftigte an", "gruende": "P9"},
+               {"nr": 4, "text": "Solange Amazon lügt, drohen weitere Angriffe.", "gruende": "P6"}]
+    neu = satzweise_ersetzen(ARTIKEL_ROT, stellen, [
+        {"nr": 0, "neu": "500 Amazon-Beschäftigte streiken für Tarifvertrag"},
+        {"nr": 4, "neu": ""}])
+    assert neu == ("500 Amazon-Beschäftigte streiken für Tarifvertrag\n"
+                   "Bei Amazon streiken 500 Beschäftigte. Die Gewerkschaft fordert einen Tarifvertrag.\n\n"
+                   "Der Konzern lehnt Gespräche ab.")
+
+
+def test_satzweise_ersetzen_typografie_tolerant_und_streichen_mittendrin():
+    from router import satzweise_ersetzen
+    text = "Titel\nErster Satz. Der „Konzern“ droht allen. Letzter Satz."
+    neu = satzweise_ersetzen(text, [{"nr": 2, "text": 'Der "Konzern" droht allen.', "gruende": "P7"}],
+                             [{"nr": 2, "neu": ""}])
+    assert neu == "Titel\nErster Satz. Letzter Satz."
+
+
+@pytest.mark.parametrize("ersetzungen", [
+    [],                                         # Stelle fehlt in der Antwort
+    [{"nr": 0, "neu": ""}],                     # Titel darf nicht gestrichen werden
+])
+def test_satzweise_ersetzen_unanwendbar_gibt_none(ersetzungen):
+    from router import satzweise_ersetzen
+    stellen = [{"nr": 0, "text": "Amazon lügt Beschäftigte an", "gruende": "P9"}]
+    assert satzweise_ersetzen(ARTIKEL_ROT, stellen, ersetzungen) is None
+
+
+def test_satzweise_ersetzen_unbekannter_satz_gibt_none():
+    from router import satzweise_ersetzen
+    stellen = [{"nr": 2, "text": "Diesen Satz gibt es nicht im Artikel.", "gruende": "P7"}]
+    assert satzweise_ersetzen(ARTIKEL_ROT, stellen, [{"nr": 2, "neu": "Neu."}]) is None
+
+
+def test_rot_korrektur_faellt_auf_gesamt_zurueck(monkeypatch):
+    import ki_client
+    import router
+    aufrufe = []
+    monkeypatch.setattr(ki_client, "llm_json", lambda p, **kw: aufrufe.append(p) or {"ersetzungen": []})
+    monkeypatch.setattr(ki_client, "llm_call", lambda p, **kw: aufrufe.append(p) or "Neuer Titel\nText.")
+    stellen = [{"nr": 4, "text": "Solange Amazon lügt, drohen weitere Angriffe.", "gruende": "P6"}]
+    neu, modus = router.rot_korrektur(ARTIKEL_ROT, stellen, "<quelle>Q</quelle>")
+    assert modus == "gesamt" and neu == "Neuer Titel\nText." and len(aufrufe) == 2
+    # Korrektur-Prompt ohne Boulevard-Zuspitzung aus ki1.txt
+    assert "Härtestes Verb" not in aufrufe[0] and "nie schärfer" in aufrufe[0]
