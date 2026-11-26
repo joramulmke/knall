@@ -12,7 +12,7 @@ Automatisierte Boulevard-Pipeline: links, arbeitnehmerfreundlich, ökologisch, a
 6. **Regex-Gate** (Python): Stil- und Formfehler maschinell erkannt — Konjunktive, Passiv, Floskeln, Ansprache, GROSSBUCHSTABEN. Fehlertexte gehen als billige Korrekturrunde zurück zu KI1. Läuft nach **jeder** Textänderung (Entwurf, Gelb-Korrektur, KI3-Ersatzformulierung).
 7. **KI2 — Prüferin** (andere Modellfamilie als KI1, Schreib-Modell als Backup): Satz-für-Satz-Fakt-Prüfung (P1–P10), Ampel-JSON.
 8. **Maschinelle Sonderprüfungen** (Python, ohne KI): Zahlen-Diff gegen Quelle — exakt nach Wert, Ziffern und Zahlwörter inkl. Größenordnung („zwei“ = 2, „2,5 Mio.“ = 2.500.000), Entity-Check, N-Gramm-Plagiatscheck — der harte Boden unter allen LLMs. Abgesichert durch Tests (`tests/`), die vor jedem Lauf laufen.
-9. **Ampel-Router**: Rot → rejected/ (mit Befund, fürs Statistiksystem). Gelb → max. 2 Korrekturrunden, dann Rot. Grün → weiter.
+9. **Ampel-Router**: Rot → eine Korrekturrunde: KI1 streicht die beanstandeten Sätze oder schreibt sie enger an der Quelle (auch den Titel), danach volle KI2-Prüfung. Wieder Rot → rejected/ (mit Befund, fürs Statistiksystem). Gelb → max. 2 Korrekturrunden, dann Rot. Grün → weiter.
 10. **KI3 — Rechtsabnahme** (Prüf-Modell wie KI2): Persönlichkeitsrechte, üble Nachrede. Freigabe → published/.
 11. **Veröffentlichen**: `build_site.py` rendert published/ (HTML-escaped) in site/index.html, GitHub Pages veröffentlicht. Unter jedem Artikel stehen die Originalartikel mit Original-URL und Medium.
 
@@ -24,7 +24,7 @@ Automatisierte Boulevard-Pipeline: links, arbeitnehmerfreundlich, ökologisch, a
 - Groq-Minutenlimit (Tokens pro Minute): Die von Groq genannte Wartezeit wird bis zu 3-mal abgewartet, dann folgt das nächste Modell.
 - Früher Modellwechsel: Bei 429 gibt es nur einen kurzen Wiederholversuch (15 s), bei leerer Antwort einen sofortigen; danach kommt das nächste Modell der Kette. Ein Modell mit 429 rückt für `KNALL_MODELL_SPERRE_S` (Default 600 s) auch in späteren Stufen ans Ende der Kette.
 - Quellen werden bereinigt (HTML, Steuerzeichen) und in `<quelle>`-Blöcke gesetzt; Quellen mit Anweisungs-Text (Prompt-Injection) werden verworfen (`scripts/safety.py`).
-- KI2: Grün nur, wenn das Protokoll vollständig ist (jeder Satz geprüft, nur bekannte Befunde) und die nachgerechnete Ampel ebenfalls grün ergibt. Alles Unklare = rot.
+- KI2: Grün nur, wenn das Protokoll vollständig ist (jeder Satz geprüft, nur bekannte Befunde) und die nachgerechnete Ampel ebenfalls grün ergibt. Alles Unklare = rot. Die Rot-Korrektur (`KNALL_MAX_ROT_RUNDEN`, Default 1, 0 = aus) gibt es nur bei sauberem Protokoll mit konkret benannten roten Sätzen; bei Systemfehler oder unvollständigem Protokoll wird sofort abgelehnt.
 - Sonderprüfungen (Zahlen, Namen/Kürzel, 20-Wort-Plagiat, Injection) laufen immer, auch nach Grün.
 - KI3: Veröffentlicht wird nur eine eindeutige, vollständige „freigabe“ (R1–R6). „stopp“ oder Unklares → rejected, endgültig. „nachbesserung“ → alle Ersatzformulierungen müssen wörtlich greifen, danach genau EINE Nachprüfung (KI2 + Sonderprüfung + KI3); jedes Nichtbestehen → rejected, keine weitere Schleife.
 - Eigener LLM-Tageszähler: Jede Anfrage zählt (429 separat). Ab `KNALL_TAGESLIMIT_ANFRAGEN` (Default 50) wird nicht mehr angefragt; neue Artikel starten nur, wenn noch mind. 8 Anfragen übrig sind. Die Tageswerte stehen dauerhaft in `stats.json`, `_kontingent` zeigt die letzten 28 Tage (Schnitt, Maximum, Tage am Limit, 429-Anteil).
