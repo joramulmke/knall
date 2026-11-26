@@ -6,6 +6,7 @@ Google-News-Spiegeln) holt danach fulltext.py — nur für die besten Kandidaten
 """
 import json
 import hashlib
+import re
 import socket
 import datetime
 import pathlib
@@ -62,6 +63,32 @@ def diagnose(feed_key, url):
         print(f"  diagnose {feed_key} [{name}]: HTTP {status}, {ctype}, {final} — {head}")
 
 
+_UNGUELTIG_XML = re.compile(rb"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+_NACKTES_AMP = re.compile(rb"&(?!#?\w+;)")
+
+
+def repariere_xml(raw):
+    """Macht leicht kaputtes RSS lesbar: BOM und Leerraum vor der
+    XML-Deklaration weg, in XML verbotene Steuerzeichen raus, nacktes
+    "&" escapen."""
+    raw = raw.lstrip(b"\xef\xbb\xbf").lstrip()
+    raw = _UNGUELTIG_XML.sub(b"", raw)
+    return _NACKTES_AMP.sub(b"&amp;", raw)
+
+
+def lade_repariert(url):
+    """Feed selbst laden und reparieren; None bei Fehler."""
+    import urllib.request
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": feedparser.USER_AGENT})
+        with urllib.request.urlopen(req, timeout=FEED_TIMEOUT) as r:
+            raw = r.read()
+    except Exception as exc:  # noqa: BLE001
+        print(f"  reparatur {url}: {type(exc).__name__}: {exc}")
+        return None
+    return feedparser.parse(repariere_xml(raw))
+
+
 def fetch(feed_key, feed_def):
     if feed_def.get("aktiv") is False:
         return "deaktiviert"
@@ -75,9 +102,15 @@ def fetch(feed_key, feed_def):
     if not parsed.entries:
         status = getattr(parsed, "status", "?")
         reason = getattr(parsed, "bozo_exception", "")
-        print(f"::warning::{feed_key}: 0 Eintraege (HTTP {status}) {reason}")
-        if reason:
-            diagnose(feed_key, url)
+        repariert = lade_repariert(url) if reason else None
+        if repariert is not None and repariert.entries:
+            print(f"{feed_key}: kaputtes XML repariert ({reason})")
+            repariert.feed = repariert.feed or getattr(parsed, "feed", {})
+            parsed = repariert
+        else:
+            print(f"::warning::{feed_key}: 0 Eintraege (HTTP {status}) {reason}")
+            if reason:
+                diagnose(feed_key, url)
     is_mirror = feed_def.get("type") == "google-news-mirror"
     feed_title = clean_text(getattr(parsed, "feed", {}).get("title", "")) if not is_mirror else ""
     saved = 0
