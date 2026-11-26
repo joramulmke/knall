@@ -7,8 +7,10 @@ Kernregeln (keine menschliche Freigabe → fail-closed):
   als vollständig und eindeutig "gruen" bestätigt. Alles andere = rot.
 - Jede Gelb-Korrektur führt zurück vor KI2 (max. 2 Runden, dann rot).
 - Rot mit sauberem Protokoll (einzelne Sätze/Titel beanstandet) bekommt
-  EINE Korrektur durch KI1 (streichen oder enger an der Quelle), danach
-  wieder volle KI2-Prüfung und Sonderprüfungen. Wieder rot → abgelehnt.
+  bis zu MAX_ROT_ROUNDS Korrekturen durch KI1 mit eigenem, vorsichtigem
+  Prompt (prompts/ki1_korrektur.txt): nur die beanstandeten Sätze werden
+  ersetzt oder gestrichen, alles andere bleibt technisch unverändert.
+  Danach wieder volle KI2-Prüfung und Sonderprüfungen.
 - Sonderprüfungen laufen IMMER, auch nach grün.
 - Regex-Gate läuft nach JEDER Textänderung (KI1-Entwurf, Gelb-Korrektur,
   KI3-Ersatzformulierung) — nicht nur nach dem ersten Entwurf.
@@ -48,7 +50,7 @@ ARCHIV = ROOT / "archiv" / "abgelehnt"
 MAX_GELB_ROUNDS = 2
 # Rot von KI2 (Fakt-Verstoß in einzelnen Sätzen/Titel): so viele Korrekturrunden
 # durch KI1 mit anschließender voller KI2-Prüfung; 0 = sofort ablehnen
-MAX_ROT_ROUNDS = int(os.environ.get("KNALL_MAX_ROT_RUNDEN") or 1)
+MAX_ROT_ROUNDS = int(os.environ.get("KNALL_MAX_ROT_RUNDEN") or 2)
 MAX_REGEX_ROUNDS = 2
 
 
@@ -349,30 +351,120 @@ def gelb_hinweis(ki2_protokoll):
     return " ".join(teile) if teile else "Stil-Anmerkungen der Prüfung beachten."
 
 
-def rot_hinweis(ki2_protokoll, gruende):
-    """Korrekturtext aus den roten Befunden — oder None, wenn das Protokoll
-    nicht sauber ist (Systemfehler, unvollständig, widersprüchlich). Dann
-    gibt es keine Korrektur, sondern die Ablehnung."""
+def rot_stellen(ki2_protokoll, gruende):
+    """Die roten Stellen aus dem KI2-Protokoll als Liste von
+    {"nr", "text", "gruende"} — oder None, wenn das Protokoll nicht sauber
+    ist (Systemfehler, unvollständig, widersprüchlich). Dann gibt es keine
+    Korrektur, sondern die Ablehnung. nr 0 = Titel."""
     if gruende or not isinstance(ki2_protokoll, dict):
         return None
     if ki2_protokoll.get("systemfehler") not in (None, "", "null", False):
         return None
-    teile = []
+    stellen = []
     for satz in ki2_protokoll.get("saetze", []) or []:
         if not isinstance(satz, dict) or str(satz.get("befund", "")).lower() != "rot":
             continue
-        nr = satz.get("satz_nr")
-        wo = "Titel" if nr == 0 else f"Satz {nr}"
-        txt = str(satz.get("text") or "").strip()
+        try:
+            nr = int(satz.get("satz_nr"))
+        except (TypeError, ValueError):
+            nr = None
         gruende_satz = []
         for v in satz.get("verstoesse", []) or []:
             if isinstance(v, dict):
                 gruende_satz.append(f"{v.get('pruefposten', '?')}: {str(v.get('erklaerung') or '').strip()}")
-        teile.append(f"- {wo}" + (f" „{txt}“" if txt else "") + " — " + ("; ".join(gruende_satz) or "Fakt-Verstoß"))
+        stellen.append({"nr": nr, "text": str(satz.get("text") or "").strip(),
+                        "gruende": "; ".join(gruende_satz) or "Fakt-Verstoß"})
     titel_rot = str(ki2_protokoll.get("titel_befund", "")).lower() == "rot"
-    if titel_rot and not any(t.startswith("- Titel") for t in teile):
-        teile.append("- Titel — Fakt-Verstoß (P10)")
-    return "\n".join(teile) if teile else None
+    if titel_rot and not any(s["nr"] == 0 for s in stellen):
+        stellen.append({"nr": 0, "text": "", "gruende": "Fakt-Verstoß (P10)"})
+    return stellen or None
+
+
+def rot_hinweis(ki2_protokoll, gruende):
+    """Korrekturtext (eine Zeile pro roter Stelle) oder None."""
+    stellen = rot_stellen(ki2_protokoll, gruende)
+    if not stellen:
+        return None
+    teile = []
+    for s in stellen:
+        wo = "Titel" if s["nr"] == 0 else f"Satz {s['nr']}"
+        teile.append(f"- [{s['nr']}] {wo}" + (f" „{s['text']}“" if s["text"] else "") + " — " + s["gruende"])
+    return "\n".join(teile)
+
+
+def _aufraeumen(text):
+    """Nach dem Streichen von Sätzen: doppelte Leerzeichen, verwaiste Punkte
+    und leere Absätze entfernen."""
+    text = re.sub(r"(?<=[.!?…])[ \t]+\.(?=\s|$)", "", text)
+    text = re.sub(r"(?m)^[ \t]*\.[ \t]*", "", text)
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    text = re.sub(r"[ \t]+\n", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return "\n".join(z.strip() if not z.strip() else z.rstrip() for z in text.split("\n")).strip()
+
+
+def satzweise_ersetzen(text, stellen, ersetzungen):
+    """Ersetzt NUR die beanstandeten Stellen. Titel (erste Zeile) und alle
+    übrigen Sätze bleiben technisch unverändert. Rückgabe: neuer Text oder
+    None, wenn eine Stelle nicht eindeutig anwendbar ist."""
+    neu_von = {}
+    for e in ersetzungen or []:
+        if isinstance(e, dict):
+            try:
+                neu_von[int(e.get("nr"))] = str(e.get("neu") or "").strip()
+            except (TypeError, ValueError):
+                continue
+    zeilen = text.strip().split("\n", 1)
+    titel, rumpf = zeilen[0], (zeilen[1] if len(zeilen) > 1 else "")
+    for s in stellen:
+        nr = s["nr"]
+        if nr is None or nr not in neu_von:
+            return None
+        neu = neu_von[nr]
+        if nr == 0:
+            neu = neu.lstrip("#").strip()
+            if not neu or "\n" in neu:
+                return None  # Titel wird nie gestrichen
+            titel = neu
+            continue
+        if not s["text"] or "\n" in neu:
+            return None
+        ergebnis = _ersetze_tolerant(rumpf, s["text"], neu)
+        if ergebnis is None:
+            return None
+        rumpf = ergebnis
+    return _aufraeumen(titel + "\n" + rumpf)
+
+
+def rot_korrektur(text, stellen, quellen):
+    """KI1-Korrektur roter Stellen mit eigenem, vorsichtigem Prompt (ohne den
+    Boulevard-Teil des Schreibprompts). Zuerst satzweise; lässt sich das nicht
+    sauber anwenden, schreibt KI1 den Artikel mit denselben Regeln komplett
+    neu. Rückgabe (neuer_text, modus)."""
+    from ki_client import llm_call, llm_json
+    tpl = (ROOT / "prompts" / "ki1_korrektur.txt").read_text(encoding="utf-8")
+    hinweis = rot_hinweis({"saetze": [
+        {"satz_nr": s["nr"], "text": s["text"], "befund": "rot",
+         "verstoesse": [{"pruefposten": "", "erklaerung": s["gruende"]}]} for s in stellen]}, [])
+    basis = fill(tpl, QUELLEN=quellen, ARTIKEL=text, STELLEN=hinweis)
+    satzweise = all(s["nr"] == 0 or s["text"] for s in stellen)
+    if satzweise:
+        antwort = llm_json(
+            basis + "\n\nAntworte AUSSCHLIESSLICH mit diesem JSON. Für jede beanstandete Stelle "
+            "genau ein Eintrag mit ihrer Nummer in eckigen Klammern; \"neu\" ist der Ersatz "
+            "(ein Satz bzw. der Titel) oder \"\" zum Streichen:\n"
+            '{"ersetzungen": [{"nr": 3, "neu": "..."}]}',
+            model="LARGE", temperature=0.0)
+        if isinstance(antwort, dict):
+            neu = satzweise_ersetzen(text, stellen, antwort.get("ersetzungen"))
+            if neu:
+                return neu, "satzweise"
+    neu = llm_call(
+        basis + "\n\nÄndere NUR die beanstandeten Stellen nach den Regeln oben. Alle anderen "
+        "Sätze bleiben Wort für Wort gleich. Antworte mit dem kompletten Artikel "
+        "(Titel als erste Zeile), ohne Vorrede.",
+        model="LARGE").strip()
+    return neu, "gesamt"
 
 
 def ki2_check(text, quellen):
@@ -419,26 +511,18 @@ def evaluate_stage():
                 draft["ki2_protokoll"] = protokoll
                 draft.setdefault("ki2_validierung", []).append({"ampel": ampel, "gruende": gruende})
                 if ampel == "rot":
-                    hinweis = rot_hinweis(protokoll, gruende) if rot_rounds < MAX_ROT_ROUNDS else None
-                    if not hinweis:
+                    stellen = rot_stellen(protokoll, gruende) if rot_rounds < MAX_ROT_ROUNDS else None
+                    if not stellen:
                         break
                     rot_rounds += 1
+                    hinweis = rot_hinweis(protokoll, gruende)
                     print(f"  {name}: KI2 rot — Korrekturrunde {rot_rounds} durch KI1:\n{hinweis}")
-                    repair_prompt = (
-                        ki1_base
-                        + "\n\nDein bisheriger Text:\n<artikel>\n" + draft["text"] + "\n</artikel>\n\n"
-                        + "Die Faktenprüfung hat diese Stellen beanstandet:\n" + hinweis + "\n\n"
-                        + "Korrigiere NUR diese Stellen. Für jede beanstandete Stelle: Streiche den Satz, "
-                        + "oder schreibe ihn so um, dass er nur noch sagt, was ausdrücklich in den Quellen steht. "
-                        + "Ist der Titel beanstandet, schreibe einen neuen Titel nur mit Zahlen, Namen und "
-                        + "Vorwürfen, die genau so in den Quellen und im Text stehen. Füge nichts Neues hinzu. "
-                        + "Antworte mit dem kompletten korrigierten Artikel (Titel als erste Zeile)."
-                    )
-                    neu = llm_call(repair_prompt, model="LARGE").strip()
-                    verlauf(draft, "rot-korrektur", runde=rot_rounds, hinweis=hinweis, text=neu)
+                    neu, modus = rot_korrektur(draft["text"], stellen, quellen)
+                    print(f"    Korrektur {modus}")
+                    verlauf(draft, "rot-korrektur", runde=rot_rounds, modus=modus, hinweis=hinweis, text=neu)
                     neu, rest, rr = regex_runden(neu, ki1_base, quellen, draft, "regex-nach-rot")
                     draft.setdefault("rot_korrekturen", []).append(
-                        {"runde": rot_rounds, "regex_runden": rr, "regex_rest": len(rest)})
+                        {"runde": rot_rounds, "modus": modus, "regex_runden": rr, "regex_rest": len(rest)})
                     draft["text"] = neu
                     write_json(dpath, draft)  # Zwischenstand sichern
                     continue

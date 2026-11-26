@@ -37,6 +37,31 @@ def mirror_feed_url(query):
     return f"https://news.google.com/rss/search?q={q}&hl=de&gl=DE&ceid=DE:de"
 
 
+DIAG_UAS = {
+    "feedparser": feedparser.USER_AGENT,
+    "knallbot": "Mozilla/5.0 (compatible; KnallBot/1.0; RSS-Volltext)",
+}
+
+
+def diagnose(feed_key, url):
+    """Bei kaputtem Feed: Was liefert der Server wirklich? Loggt pro
+    User-Agent Status, Content-Type, Endadresse und den Anfang der Antwort
+    (eine Zeile). So sieht man Bot-Schutzseiten oder verschobene Feeds."""
+    import re
+    import urllib.request
+    for name, ua in DIAG_UAS.items():
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": ua})
+            with urllib.request.urlopen(req, timeout=FEED_TIMEOUT) as r:
+                status, ctype, final = r.status, r.headers.get("Content-Type", "?"), r.geturl()
+                head = r.read(400).decode("utf-8", "replace")
+        except Exception as exc:  # noqa: BLE001 — reine Diagnose
+            print(f"  diagnose {feed_key} [{name}]: {type(exc).__name__}: {exc}")
+            continue
+        head = re.sub(r"\s+", " ", head).strip()[:200]
+        print(f"  diagnose {feed_key} [{name}]: HTTP {status}, {ctype}, {final} — {head}")
+
+
 def fetch(feed_key, feed_def):
     if feed_def.get("aktiv") is False:
         return "deaktiviert"
@@ -51,6 +76,8 @@ def fetch(feed_key, feed_def):
         status = getattr(parsed, "status", "?")
         reason = getattr(parsed, "bozo_exception", "")
         print(f"::warning::{feed_key}: 0 Eintraege (HTTP {status}) {reason}")
+        if reason:
+            diagnose(feed_key, url)
     is_mirror = feed_def.get("type") == "google-news-mirror"
     feed_title = clean_text(getattr(parsed, "feed", {}).get("title", "")) if not is_mirror else ""
     saved = 0
