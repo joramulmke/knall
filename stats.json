@@ -60,47 +60,53 @@
     ],
     "warnung_rot_quote": true,
     "anfragen": {
-      "anfragen": 6,
-      "groq_anfragen": 18,
+      "anfragen": 8,
+      "groq_anfragen": 19,
       "ok": 0,
-      "groq_ok": 10,
-      "r429": 6,
+      "groq_ok": 11,
+      "r429": 8,
       "groq_r429": 8,
       "fehler": 0,
       "groq_fehler": 0,
       "leer": 0,
       "groq_leer": 0,
       "modelle": {
-        "google/gemma-4-26b-a4b-it:free": 4,
-        "groq:openai/gpt-oss-120b": 18,
+        "google/gemma-4-26b-a4b-it:free": 6,
+        "groq:openai/gpt-oss-120b": 19,
         "google/gemma-4-31b-it:free": 2
       },
       "limit": 50,
       "groq_limit": 900,
       "gesperrt_bis": {
-        "google/gemma-4-26b-a4b-it:free": 1795670230,
+        "google/gemma-4-26b-a4b-it:free": 1795675898,
         "google/gemma-4-31b-it:free": 1795668805
+      },
+      "groq_fenster": {
+        "groq:openai/gpt-oss-120b": {
+          "rest": 1949,
+          "frei_ab": 1795675344.8
+        }
       }
     }
   },
   "_kontingent": {
     "tage": 2,
     "limit": 50,
-    "schnitt_anfragen": 28.0,
+    "schnitt_anfragen": 29.0,
     "max_anfragen": 50,
     "tage_am_limit": 1,
     "tage_ueber_80_prozent": 1,
-    "r429_gesamt": 26,
-    "anteil_429": 0.464,
-    "groq_schnitt_anfragen": 29.5,
+    "r429_gesamt": 28,
+    "anteil_429": 0.483,
+    "groq_schnitt_anfragen": 30.0,
     "groq_r429_gesamt": 22,
     "im_kontingent": false
   },
   "_volltext": {
     "bgh_entscheidungen": {
       "ok": 0,
-      "blockiert": 1,
-      "tage": 1
+      "blockiert": 3,
+      "tage": 2
     },
     "bgh_pressemitteilungen": {
       "ok": 1,
@@ -119,12 +125,12 @@
     },
     "bt_arbeit_soziales": {
       "ok": 0,
-      "blockiert": 3,
+      "blockiert": 5,
       "tage": 2
     },
     "bt_familie_senioren": {
       "ok": 0,
-      "blockiert": 2,
+      "blockiert": 4,
       "tage": 2
     },
     "bt_gesundheit": {
@@ -139,7 +145,7 @@
     },
     "bt_hib": {
       "ok": 2,
-      "blockiert": 4,
+      "blockiert": 6,
       "tage": 2
     },
     "bt_menschenrechte": {
@@ -152,10 +158,15 @@
       "blockiert": 0,
       "tage": 2
     },
-    "bt_umwelt_klima": {
+    "bt_recht_verbraucher": {
       "ok": 0,
-      "blockiert": 1,
+      "blockiert": 0,
       "tage": 1
+    },
+    "bt_umwelt_klima": {
+      "ok": 1,
+      "blockiert": 2,
+      "tage": 2
     },
     "bt_wirtschaft_energie": {
       "ok": 4,
@@ -189,17 +200,22 @@
     },
     "dlf_politik": {
       "ok": 0,
-      "blockiert": 2,
-      "tage": 1
+      "blockiert": 4,
+      "tage": 2
     },
     "freie_presse": {
       "ok": 2,
       "blockiert": 2,
       "tage": 1
     },
-    "junge_welt": {
+    "gruene_bundestag": {
       "ok": 1,
       "blockiert": 0,
+      "tage": 1
+    },
+    "junge_welt": {
+      "ok": 4,
+      "blockiert": 2,
       "tage": 2
     },
     "l_iz": {
@@ -278,7 +294,7 @@
       "tage": 2
     },
     "sz_politik": {
-      "ok": 7,
+      "ok": 8,
       "blockiert": 2,
       "tage": 2
     },
@@ -304,7 +320,7 @@
     },
     "thueringer_allgemeine": {
       "ok": 0,
-      "blockiert": 4,
+      "blockiert": 6,
       "tage": 2
     },
     "umweltbundesamt": {
@@ -313,9 +329,9 @@
       "tage": 1
     },
     "verdi_pm": {
-      "ok": 0,
+      "ok": 2,
       "blockiert": 0,
-      "tage": 1
+      "tage": 2
     },
     "volksstimme": {
       "ok": 6,
