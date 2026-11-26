@@ -88,8 +88,19 @@ definitions:
     query: "BMAS Pressemitteilung"
     ressort: kohle
   bmg:
+    aktiv: false   # 2026-11-26: ersetzt durch native BMG-Feeds (bmg_meldungen, bmg_presse)
     type: google-news-mirror
     query: "Bundesministerium Gesundheit Pressemitteilung"
+    ressort: pflege
+  bmg_meldungen:
+    type: nativ
+    name: "Bundesgesundheitsministerium"
+    url: https://www.bundesgesundheitsministerium.de/meldungen.xml
+    ressort: pflege
+  bmg_presse:
+    type: nativ
+    name: "Bundesgesundheitsministerium"
+    url: https://www.bundesgesundheitsministerium.de/pressemitteilungen.xml
     ressort: pflege
   umweltbundesamt:
     type: google-news-mirror
