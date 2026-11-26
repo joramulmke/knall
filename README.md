@@ -4,7 +4,7 @@ Automatisierte Boulevard-Pipeline: links, arbeitnehmerfreundlich, ökologisch, a
 
 ## Wie es funktioniert
 
-1. **Sammeln** (GitHub Actions, täglich 06:00): RSS-Feeds von taz, nd, tagesschau, Deutschlandfunk, Ostdeutscher Lokalpresse (via Google-News-Spiegelfeeds), Behörden und Gewerkschaften werden gepollt.
+1. **Sammeln** (GitHub Actions, alle 6 Stunden: 06, 12, 18 und 00 Uhr MEZ): RSS-Feeds von taz, nd, tagesschau, Deutschlandfunk, Ostdeutscher Lokalpresse (via Google-News-Spiegelfeeds), Behörden und Gewerkschaften werden gepollt.
 2. **Maschinelle Vorbewertung** (Python, kostenlos): Keyword-Score nach Ressort auf den Teasern.
 3. **Originalartikel holen** (`fulltext.py`): Für die besten Teaser wird die Original-URL ermittelt (Google-News-Links werden aufgelöst) und der Volltext gelesen (robots.txt wird respektiert). Paywall-Teaser, Duplikate und nicht auflösbare Links fallen raus — **geschrieben wird nur aus Originalartikeln**. Bis zu 60 Abrufe pro Lauf; Feeds, die blocken (403, Paywall, robots.txt), werden nach 2 Blockaden im Lauf übersprungen und über ein 14-Tage-Gedächtnis nach hinten sortiert (Bilanz pro Feed: `stats.json` → `_volltext`). Danach erneute Bewertung auf dem Volltext.
 4. **KI0 — Kuratorin** (kleines LLM): wählt 1–3 Themen, bildet Quellen-Cluster.
