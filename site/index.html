@@ -34,6 +34,7 @@
   .ressorts button:hover, .ressorts button.aktiv { border-bottom-color: var(--lila); color: var(--gelb); }
 
   /* Laufband */
+  .ticker[hidden] { display: none; }  /* Laufband vorerst aus — zum Aktivieren "hidden" am Element entfernen */
   .ticker { background: var(--gelb); color: var(--schwarz); overflow: hidden; display: flex; align-items: stretch; border-bottom: 3px solid var(--schwarz); }
   .ticker-label { flex: none; background: var(--schwarz); color: var(--gelb); font: 400 1rem var(--schlagzeile); text-transform: uppercase; padding: 0.45rem 0.8rem; letter-spacing: 0.05em; }
   .ticker-band { overflow: hidden; flex: 1; display: flex; align-items: center; }
@@ -109,7 +110,7 @@
 <div class="unterzeile">Das linke Boulevard<br><span class="datum"><!-- DATUM -->Donnerstag, 26. November 2026<!-- /DATUM --></span></div>
 </div></div>
 <nav class="ressorts" aria-label="Ressorts"><div class="ressorts-innen"><!-- RESSORTS --><button type="button" class="aktiv" data-filter="">Alles</button><!-- /RESSORTS --></div></nav>
-<div class="ticker" aria-label="Neueste Schlagzeilen"><div class="ticker-label">+++ Eilt</div><div class="ticker-band"><!-- TICKER --><div class="lauf"><span>Knall — das linke Boulevard</span><span>Knall — das linke Boulevard</span></div><!-- /TICKER --></div></div>
+<div class="ticker" aria-label="Neueste Schlagzeilen" hidden><div class="ticker-label">+++ Eilt</div><div class="ticker-band"><!-- TICKER --><div class="lauf"><span>Knall — das linke Boulevard</span><span>Knall — das linke Boulevard</span></div><!-- /TICKER --></div></div>
 </header>
 <main>
 <!-- ARTIKEL -->
@@ -118,8 +119,8 @@
 </main>
 <footer><div class="fuss-innen">
 <div class="fuss-logo">KNALL</div>
-Alle Texte entstehen automatisiert aus verlinkten Quellen und werden mehrstufig geprüft (KI-Prüfung + maschinelle Zahlen-, Namens- und Plagiatschecks). Rote Texte werden nie veröffentlicht — Ablehnungsgründe (ohne Text) liegen offen im <a href="https://github.com/joramulmke/knall">Repository</a>.
-<br><a href="https://joram.eu/imp">Impressum</a>
+Alle Texte entstehen automatisiert aus verlinkten Quellen und werden mehrstufig geprüft (KI-Prüfung + maschinelle Zahlen-, Namens- und Plagiatschecks). Ablehnungsgründe (ohne Text) liegen offen im <a href="https://github.com/joramulmke/knall">Repository</a>.
+<br><a href="https://joram.eu/imp">Impressum und Datenschutzerklärung</a>
 </div></footer>
 <script>
   // Ressort-Filter (ohne JS werden einfach alle Artikel gezeigt)
