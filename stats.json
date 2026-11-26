@@ -60,25 +60,25 @@
     ],
     "warnung_rot_quote": true,
     "anfragen": {
-      "anfragen": 4,
-      "groq_anfragen": 17,
+      "anfragen": 6,
+      "groq_anfragen": 18,
       "ok": 0,
-      "groq_ok": 9,
-      "r429": 4,
+      "groq_ok": 10,
+      "r429": 6,
       "groq_r429": 8,
       "fehler": 0,
       "groq_fehler": 0,
       "leer": 0,
       "groq_leer": 0,
       "modelle": {
-        "google/gemma-4-26b-a4b-it:free": 2,
-        "groq:openai/gpt-oss-120b": 17,
+        "google/gemma-4-26b-a4b-it:free": 4,
+        "groq:openai/gpt-oss-120b": 18,
         "google/gemma-4-31b-it:free": 2
       },
       "limit": 50,
       "groq_limit": 900,
       "gesperrt_bis": {
-        "google/gemma-4-26b-a4b-it:free": 1795668788,
+        "google/gemma-4-26b-a4b-it:free": 1795670230,
         "google/gemma-4-31b-it:free": 1795668805
       }
     }
@@ -86,13 +86,13 @@
   "_kontingent": {
     "tage": 2,
     "limit": 50,
-    "schnitt_anfragen": 27.0,
+    "schnitt_anfragen": 28.0,
     "max_anfragen": 50,
     "tage_am_limit": 1,
     "tage_ueber_80_prozent": 1,
-    "r429_gesamt": 24,
-    "anteil_429": 0.444,
-    "groq_schnitt_anfragen": 29.0,
+    "r429_gesamt": 26,
+    "anteil_429": 0.464,
+    "groq_schnitt_anfragen": 29.5,
     "groq_r429_gesamt": 22,
     "im_kontingent": false
   },
@@ -119,33 +119,33 @@
     },
     "bt_arbeit_soziales": {
       "ok": 0,
-      "blockiert": 2,
-      "tage": 1
+      "blockiert": 3,
+      "tage": 2
     },
     "bt_familie_senioren": {
       "ok": 0,
       "blockiert": 2,
-      "tage": 1
+      "tage": 2
     },
     "bt_gesundheit": {
-      "ok": 4,
+      "ok": 6,
       "blockiert": 1,
       "tage": 2
     },
     "bt_haushalt": {
-      "ok": 1,
-      "blockiert": 1,
-      "tage": 1
+      "ok": 2,
+      "blockiert": 2,
+      "tage": 2
     },
     "bt_hib": {
-      "ok": 1,
-      "blockiert": 2,
-      "tage": 1
+      "ok": 2,
+      "blockiert": 4,
+      "tage": 2
     },
     "bt_menschenrechte": {
       "ok": 0,
       "blockiert": 0,
-      "tage": 1
+      "tage": 2
     },
     "bt_petitionen": {
       "ok": 0,
@@ -158,14 +158,14 @@
       "tage": 1
     },
     "bt_wirtschaft_energie": {
-      "ok": 2,
-      "blockiert": 1,
+      "ok": 4,
+      "blockiert": 2,
       "tage": 2
     },
     "bt_wohnen": {
       "ok": 0,
       "blockiert": 0,
-      "tage": 1
+      "tage": 2
     },
     "bundesagentur_arbeit": {
       "ok": 0,
@@ -173,19 +173,19 @@
       "tage": 1
     },
     "destatis": {
-      "ok": 2,
+      "ok": 4,
       "blockiert": 0,
-      "tage": 1
+      "tage": 2
     },
     "deutschlandfunk": {
-      "ok": 4,
-      "blockiert": 2,
+      "ok": 8,
+      "blockiert": 3,
       "tage": 2
     },
     "dgb_pm": {
       "ok": 1,
       "blockiert": 1,
-      "tage": 1
+      "tage": 2
     },
     "dlf_politik": {
       "ok": 0,
@@ -198,9 +198,9 @@
       "tage": 1
     },
     "junge_welt": {
-      "ok": 0,
+      "ok": 1,
       "blockiert": 0,
-      "tage": 1
+      "tage": 2
     },
     "l_iz": {
       "ok": 10,
@@ -223,7 +223,7 @@
       "tage": 1
     },
     "mdr_thueringen": {
-      "ok": 3,
+      "ok": 4,
       "blockiert": 4,
       "tage": 2
     },
@@ -273,27 +273,27 @@
       "tage": 1
     },
     "schwulissimo": {
-      "ok": 8,
+      "ok": 12,
       "blockiert": 0,
       "tage": 2
     },
     "sz_politik": {
-      "ok": 4,
-      "blockiert": 0,
-      "tage": 1
+      "ok": 7,
+      "blockiert": 2,
+      "tage": 2
     },
     "t_online": {
-      "ok": 1,
-      "blockiert": 0,
-      "tage": 1
-    },
-    "tagesschau": {
       "ok": 7,
       "blockiert": 0,
       "tage": 2
     },
+    "tagesschau": {
+      "ok": 12,
+      "blockiert": 0,
+      "tage": 2
+    },
     "taz_gesamt": {
-      "ok": 11,
+      "ok": 12,
       "blockiert": 0,
       "tage": 2
     },
@@ -305,7 +305,7 @@
     "thueringer_allgemeine": {
       "ok": 0,
       "blockiert": 4,
-      "tage": 1
+      "tage": 2
     },
     "umweltbundesamt": {
       "ok": 0,
@@ -318,7 +318,7 @@
       "tage": 1
     },
     "volksstimme": {
-      "ok": 5,
+      "ok": 6,
       "blockiert": 2,
       "tage": 2
     }
