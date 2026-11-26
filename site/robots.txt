@@ -1,2 +1,3 @@
 User-agent: *
 Allow: /
+Sitemap: https://joramulmke.github.io/knall/sitemap.xml
