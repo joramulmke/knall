@@ -2,7 +2,7 @@ name: Knall Daily Pipeline
 
 on:
   schedule:
-    - cron: '0 5,11,17,23 * * *'   # alle 6 Stunden: 06/12/18/00 Uhr MEZ
+    - cron: '0 2,7,13,19 * * *'   # 4x täglich: 03/08/14/20 Uhr MEZ
   workflow_dispatch:
 
 permissions: {}   # Rechte pro Job, so knapp wie möglich
