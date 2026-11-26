@@ -2,7 +2,8 @@ name: Knall Daily Pipeline
 
 on:
   schedule:
-    - cron: '0 2,7,13,19 * * *'   # 4x täglich: 03/08/14/20 Uhr MEZ
+    # Krumme Minute: Zur vollen Stunde lässt GitHub geplante Läufe bei Last oft ausfallen.
+    - cron: '17 2,7,13,19 * * *'   # 4x täglich: 03:17/08:17/14:17/20:17 Uhr MEZ
   workflow_dispatch:
 
 permissions: {}   # Rechte pro Job, so knapp wie möglich

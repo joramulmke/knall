@@ -219,7 +219,7 @@ def test_ki0_kette_groq_zuerst(monkeypatch, tmp_path):
     monkeypatch.setattr(ki, "available_groq_models", lambda: None)
     aufrufe = []
     monkeypatch.setattr(ki, "_post_once", lambda model, *a: aufrufe.append(model) or "ok")
-    assert ki.llm_call("p", model="SMALL") == "ok" and aufrufe == ["groq:openai/gpt-oss-120b"]
+    assert ki.llm_call("p", model="SMALL") == "ok" and aufrufe == ["groq:openai/gpt-oss-20b"]  # KI0: kleines Modell zuerst
 
 
 def test_groq_tageslimit_weiter_mit_openrouter(monkeypatch, tmp_path):
@@ -586,3 +586,43 @@ def test_rot_korrektur_faellt_auf_gesamt_zurueck(monkeypatch):
     assert modus == "gesamt" and neu == "Neuer Titel\nText." and len(aufrufe) == 2
     # Korrektur-Prompt ohne Boulevard-Zuspitzung aus ki1.txt
     assert "Härtestes Verb" not in aufrufe[0] and "nie schärfer" in aufrufe[0]
+
+
+def test_ersatztitel_nur_wenn_nur_titel_rot():
+    from router import ersatztitel, setze_titel
+    d = {"cluster": {"thema": "Energiesperren belasten Haushalte"}}
+    titel = [{"nr": 0, "text": "", "gruende": "P10"}]
+    assert ersatztitel(d, titel) == "Energiesperren belasten Haushalte"
+    assert ersatztitel(d, titel + [{"nr": 3, "text": "x", "gruende": "P1"}]) is None
+    assert ersatztitel({**d, "ersatztitel": "schon"}, titel) is None
+    assert ersatztitel({"cluster": {"thema": "Wer zahlt?"}}, titel) is None
+    assert setze_titel("Alter Titel\nText.", "Neu") == "Neu\nText."
+    assert setze_titel("\n# Alt\nText.", "Neu") == "\n# Neu\nText."
+
+
+def test_nur_titel_rot_bekommt_ersatztitel_dann_gruen(monkeypatch):
+    import router
+    nur_titel = {"ampel": "rot", "titel_befund": "rot", "systemfehler": None, "saetze": []}
+    folge = iter([("rot", _rot_prot()), ("rot", _rot_prot()), ("rot", nur_titel), ("gruen", {"saetze": []})])
+    monkeypatch.setattr(router, "ki2_check", lambda t, q: (*next(folge), []))
+    monkeypatch.setattr(router, "rot_korrektur", lambda t, s, q: ("Alter Titel\nText.", "satzweise"))
+    draft = {"stage": "geschrieben", "text": "Alt", "cluster": {"thema": "Sachlicher Titel"}}
+    path = pathlib.Path("2026-01-01-draft-0.json")
+    monkeypatch.setattr(router, "load_drafts", lambda: [("2026-01-01", path, draft)])
+    monkeypatch.setattr(router, "sources_from_cluster", lambda c, t: ("Q", [], []))
+    monkeypatch.setattr(router, "regex_runden", lambda t, *a, **k: (t, [], 0))
+    monkeypatch.setattr(router, "write_json", lambda p, o: None)
+    monkeypatch.setattr(router, "reject", lambda *a: pytest.fail("abgelehnt"))
+    import special_checks
+    monkeypatch.setattr(special_checks, "run_all", lambda t, q: {"bestaende": True})
+    router.evaluate_stage()
+    assert draft["stage"] == "gruen" and draft["text"] == "Sachlicher Titel\nText."
+
+
+def test_kaputtes_rss_wird_repariert():
+    import feedparser
+    import collect
+    raw = (b'\xef\xbb\xbf\n<?xml version="1.0" encoding="utf-8"?>\n<rss version="2.0"><channel>'
+           b'<title>T</title><item><title>A & B\x0b</title><link>https://x/1</link></item></channel></rss>')
+    r = feedparser.parse(collect.repariere_xml(raw))
+    assert not r.bozo and r.entries[0].title == "A & B"

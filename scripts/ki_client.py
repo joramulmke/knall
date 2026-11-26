@@ -70,6 +70,9 @@ DEFAULT_CHECK_GROQ = "groq:openai/gpt-oss-120b"
 DEFAULT_GROQ_MODELS = ["groq:openai/gpt-oss-120b", "groq:openai/gpt-oss-20b"]
 # Schreiben (KI1): nur große Modelle — das kleine schrieb im Test ungenau.
 DEFAULT_GROQ_SCHREIBER = ["groq:openai/gpt-oss-120b", "groq:qwen/qwen3.8-27b"]
+# Themenauswahl (KI0): kleines Modell zuerst. Es hat ein eigenes
+# Token-pro-Minute-Kontingent und schont das große für Schreiben und Prüfen.
+DEFAULT_GROQ_AUSWAHL = ["groq:openai/gpt-oss-20b", "groq:openai/gpt-oss-120b"]
 GROQ_TPM_VERSUCHE = 3            # Token-pro-Minute-Limit: so oft die genannte Wartezeit abwarten
 GROQ_TPM_MAX_WARTEN = 65
 GROQ = "groq:"
@@ -434,7 +437,10 @@ def llm_call(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.3)
     """Ruft LLM auf. 429/leere Antwort: kurzes Backoff, dann nächstes :free-Modell.
     Tageslimit → QuotaExhausted sofort. 401/402/403 → sofort Abbruch."""
     primary = resolve_model(model)
-    groq = groq_modelle(schreiben=(model == "LARGE"))
+    if model == "SMALL" and os.environ.get("GROQ_API_KEY") and not os.environ.get("KI_GROQ_MODELS"):
+        groq = list(DEFAULT_GROQ_AUSWAHL)
+    else:
+        groq = groq_modelle(schreiben=(model == "LARGE"))
     if model == "CHECK":
         # Groq-Prüferin(nen) → Nemotron → Schreib-Modell; ohne Groq: Nemotron → Schreib-Modell
         backup = groq + [DEFAULT_CHECK, resolve_model("LARGE")]
@@ -722,9 +728,13 @@ def curate():
     prompt = (ROOT / "prompts" / "ki0.txt").read_text(encoding="utf-8")
     prompt = prompt.replace("{{KANDIDATEN}}", json.dumps(listing, ensure_ascii=False, indent=1))
     prompt = prompt.replace("{{BEREITS}}", json.dumps(bereits, ensure_ascii=False) if bereits else "[] (noch keine)")
-    model = resolve_model("SMALL")
-    print(f"KI0 laeuft mit Modell: {model} ({len(cluster_alt)} Cluster heute bereits, max. {rest} neue)")
-    result = llm_json(prompt, model=model, temperature=0.2)
+    if os.environ.get("GROQ_API_KEY"):
+        kette = ", ".join(DEFAULT_GROQ_AUSWAHL if not os.environ.get("KI_GROQ_MODELS") else groq_modelle())
+        modell_info = f"{kette}, Reserve {resolve_model('SMALL')}"
+    else:
+        modell_info = resolve_model("SMALL")
+    print(f"KI0 laeuft mit Modell: {modell_info} ({len(cluster_alt)} Cluster heute bereits, max. {rest} neue)")
+    result = llm_json(prompt, model="SMALL", temperature=0.2)
     # Nur Artikel-IDs aus der Kandidatenliste zulassen (keine erfundenen/benutzten IDs)
     valid_ids = {i["id"] for i in top}
     titel = {i["id"]: i.get("title", "") for i in top}

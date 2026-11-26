@@ -480,6 +480,28 @@ def ki2_check(text, quellen):
     return ampel, protokoll, gruende
 
 
+def ersatztitel(draft, stellen):
+    """KI0-Thema als Titel, wenn nur noch der Titel (nr 0) rot ist und es
+    noch keinen Ersatztitel gab. Sonst None."""
+    if draft.get("ersatztitel") or not stellen or any(s.get("nr") != 0 for s in stellen):
+        return None
+    thema = str((draft.get("cluster") or {}).get("thema") or "").strip()
+    if not thema or thema.endswith("?"):
+        return None
+    return thema
+
+
+def setze_titel(text, titel):
+    """Ersetzt die erste nicht-leere Zeile (Titel); Markdown-# bleibt erhalten."""
+    zeilen = text.split("\n")
+    for i, z in enumerate(zeilen):
+        if z.strip():
+            praefix = z[: len(z) - len(z.lstrip("# "))] if z.lstrip().startswith("#") else ""
+            zeilen[i] = praefix + titel
+            break
+    return "\n".join(zeilen)
+
+
 def evaluate_stage():
     """KI2 prüft → Route. Gelb = KI1-Korrektur, danach IMMER erneute KI2-Prüfung.
     Danach Sonderprüfungen (deterministisch): auch Grün kann dort noch rot werden.
@@ -511,7 +533,19 @@ def evaluate_stage():
                 draft["ki2_protokoll"] = protokoll
                 draft.setdefault("ki2_validierung", []).append({"ampel": ampel, "gruende": gruende})
                 if ampel == "rot":
-                    stellen = rot_stellen(protokoll, gruende) if rot_rounds < MAX_ROT_ROUNDS else None
+                    stellen = rot_stellen(protokoll, gruende)
+                    if stellen and rot_rounds >= MAX_ROT_ROUNDS:
+                        # Runden aufgebraucht: Ist nur noch der Titel rot, kommt
+                        # einmalig das KI0-Thema als nüchterner Ersatztitel.
+                        ersatz = ersatztitel(draft, stellen)
+                        if ersatz:
+                            print(f"  {name}: nur Titel rot — Ersatztitel aus KI0-Thema: {ersatz}")
+                            verlauf(draft, "ersatztitel", titel=ersatz)
+                            draft["text"] = setze_titel(draft["text"], ersatz)
+                            draft["ersatztitel"] = ersatz
+                            write_json(dpath, draft)
+                            continue
+                        stellen = None
                     if not stellen:
                         break
                     rot_rounds += 1
