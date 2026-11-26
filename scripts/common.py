@@ -21,7 +21,9 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 FINAL_STAGES = {"veroeffentlicht", "abgelehnt"}
-MAX_ARTIKEL_PRO_TAG = int(os.environ.get("KNALL_MAX_ARTIKEL_PRO_TAG") or 6)
+# Optionale Obergrenze fuer Themen pro Tag; 0/leer = keine Grenze (es bremsen
+# nur Gratis-Kontingent und max. 3 neue Themen pro Lauf)
+MAX_ARTIKEL_PRO_TAG = int(os.environ.get("KNALL_MAX_ARTIKEL_PRO_TAG") or 0)
 # Privates Fehler-Archiv (abgelehnte Artikel vollständig) — Aufbewahrung in Tagen
 ARCHIV_TAGE = int(os.environ.get("KNALL_ARCHIV_TAGE") or 90)
 DAY_RX = re.compile(r"^\d{4}-\d{2}-\d{2}$")
