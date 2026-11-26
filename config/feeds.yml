@@ -88,8 +88,19 @@ definitions:
     query: "BMAS Pressemitteilung"
     ressort: kohle
   bmg:
+    aktiv: false   # 2026-11-26: ersetzt durch native BMG-Feeds (bmg_meldungen, bmg_presse)
     type: google-news-mirror
     query: "Bundesministerium Gesundheit Pressemitteilung"
+    ressort: pflege
+  bmg_meldungen:
+    type: nativ
+    name: "Bundesgesundheitsministerium"
+    url: https://www.bundesgesundheitsministerium.de/meldungen.xml
+    ressort: pflege
+  bmg_presse:
+    type: nativ
+    name: "Bundesgesundheitsministerium"
+    url: https://www.bundesgesundheitsministerium.de/pressemitteilungen.xml
     ressort: pflege
   umweltbundesamt:
     type: google-news-mirror
@@ -102,6 +113,7 @@ definitions:
     query: "BGH Urteil Kündigung Miete"
     ressort: woche
   test_de:
+    aktiv: false   # 2026-11-26: ersetzt durch native test.de-Feeds (unten)
     type: google-news-mirror
     query: "Stiftung Warentest Kostentest"
     ressort: woche
@@ -411,6 +423,19 @@ definitions:
     name: "bpb"
     url: https://www.bpb.de/rss-feed/203612.rss
     ressort: all
+  # test.de: "alles" enthält Tests, Meldungen, Specials, Schnelltests und
+  # Analysen aller Ressorts — die Ressort-/Themen-Feeds wären nur Doppelte.
+  # Shop-Feed bewusst nicht (Werbung für Hefte, keine Nachrichten).
+  test_de_alles:
+    type: nativ
+    name: "Stiftung Warentest"
+    url: https://www.test.de/rss/alles/
+    ressort: woche
+  test_de_presse:
+    type: nativ
+    name: "Stiftung Warentest"
+    url: https://www.test.de/rss/presse/pressemitteilungen/
+    ressort: woche
   surplus_magazin:
     type: nativ
     name: "Surplus Magazin"

@@ -216,3 +216,16 @@ jobs:
       - id: deployment2
         if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+      # Neue Artikel als Fediverse-Posts zustellen (erst nach dem Deploy, damit
+      # die Links schon funktionieren). Ohne Secrets wird übersprungen.
+      - name: Fediverse
+        if: steps.deployment.outcome == 'success' || steps.deployment2.outcome == 'success'
+        continue-on-error: true
+        env:
+          FEDI_ENDPOINT: ${{ secrets.FEDI_ENDPOINT }}
+          FEDI_TOKEN: ${{ secrets.FEDI_TOKEN }}
+          FEDI_PRIVATE_KEY: ${{ secrets.FEDI_PRIVATE_KEY }}
+          KNALL_URL: ${{ vars.KNALL_URL || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}
+        run: |
+          python3 -m pip install -q --user requests==2.32.3
+          python3 scripts/fediverse.py
