@@ -640,7 +640,7 @@ def curate():
     Folgeläufe am selben Tag: KI0 wählt NEUE Cluster aus noch unbenutzten
     Teasern dazu (angehängt, bestehende Indizes bleiben stabil) — aber nur,
     wenn von heute nichts mehr offen ist (erst fertig machen)
-    und höchstens bis MAX_ARTIKEL_PRO_TAG. Bereits behandelte Themen von
+    (optional begrenzt durch MAX_ARTIKEL_PRO_TAG). Bereits behandelte Themen von
     gestern und heute gehen als Ausschlussliste an KI0."""
     from common import run_day, prev_day, is_open, MAX_ARTIKEL_PRO_TAG
     today = run_day()
@@ -670,7 +670,7 @@ def curate():
     if offen:
         print(f"KI0 uebersprungen: erst offene Entwuerfe fertig machen ({', '.join(offen)})")
         return
-    rest = MAX_ARTIKEL_PRO_TAG - len(cluster_alt)
+    rest = (MAX_ARTIKEL_PRO_TAG - len(cluster_alt)) if MAX_ARTIKEL_PRO_TAG > 0 else 3
     if rest <= 0:
         print(f"KI0 uebersprungen: Tageslimit von {MAX_ARTIKEL_PRO_TAG} Artikeln erreicht")
         return
@@ -720,16 +720,36 @@ def curate():
     result = llm_json(prompt, model=model, temperature=0.2)
     # Nur Artikel-IDs aus der Kandidatenliste zulassen (keine erfundenen/benutzten IDs)
     valid_ids = {i["id"] for i in top}
+    titel = {i["id"]: i.get("title", "") for i in top}
+    vorschlaege = result.get("cluster") if isinstance(result.get("cluster"), list) else []
+    print(f"KI0-Antwort: {len(vorschlaege)} Vorschlag/Vorschlaege, "
+          f"Qualitaet des Tages: {result.get('qualitaet_des_tages')!r}, "
+          f"Hauptgrund fuer Ablehnung: {result.get('abgelehnt_hauptgrund')!r}")
+    if not isinstance(result.get("cluster"), list):
+        print(f"  KI0-Antwort ohne Cluster-Liste, Schluessel: {sorted(result)}")
     neu = []
-    for c in result.get("cluster", []) if isinstance(result.get("cluster"), list) else []:
+    for n, c in enumerate(vorschlaege, 1):
         if not isinstance(c, dict):
+            print(f"  Vorschlag {n}: kein Objekt — verworfen")
             continue
-        ids = [a for a in c.get("artikel_ids", []) if a in valid_ids and a not in benutzt][:3]
-        ids = cluster_auf_gruppe(ids, gruppe, {i["id"]: i.get("title", "") for i in top})
+        roh = c.get("artikel_ids", []) if isinstance(c.get("artikel_ids"), list) else []
+        unbekannt = [a for a in roh if a not in valid_ids]
+        doppelt = [a for a in roh if a in valid_ids and a in benutzt]
+        ids = [a for a in roh if a in valid_ids and a not in benutzt][:3]
+        print(f"  Vorschlag {n}: '{str(c.get('thema') or '')[:70]}' — IDs {roh}")
+        if unbekannt:
+            print(f"    unbekannte IDs verworfen: {unbekannt}")
+        if doppelt:
+            print(f"    schon benutzte IDs verworfen: {doppelt}")
+        ids = cluster_auf_gruppe(ids, gruppe, titel)
         if ids:
             benutzt.update(ids)
             c["artikel_ids"] = ids
             neu.append(c)
+        else:
+            print("    keine gueltigen IDs uebrig — Vorschlag verworfen")
+    if len(neu) > min(3, rest):
+        print(f"  {len(neu) - min(3, rest)} Vorschlag/Vorschlaege ueber dem Limit pro Lauf verworfen")
     neu = neu[:min(3, rest)]
     existing["cluster"] = cluster_alt + neu
     existing.setdefault("laeufe", []).append({

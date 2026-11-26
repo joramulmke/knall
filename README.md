@@ -31,7 +31,7 @@ Automatisierte Boulevard-Pipeline: links, arbeitnehmerfreundlich, ökologisch, a
 - Fortsetzung bei Abbruch: Teaser, Volltexte und Entwürfe liegen **verschlüsselt** im Actions-Cache (Schlüssel abgeleitet aus `OPENROUTER_API_KEY`, den Fork-PRs nie bekommen). Ein erneuter Lauf überspringt Erledigtes und wiederholt nur technische Fehler; inhaltliche Ablehnungen sind endgültig.
 - Ein Datum pro Lauf (`KNALL_DAY`), auch über Mitternacht.
 - Offene Entwürfe von gestern werden in jeder Stufe vor den heutigen fertig gemacht und mit heutigem Datum veröffentlicht (`entstanden:` im Frontmatter). Was älter als gestern und noch offen ist, wird als „abgelaufen“ vermerkt und aufgeräumt.
-- Weitere Läufe am selben Tag: Ist von heute nichts mehr offen, wählt KI0 neue Themen aus noch unbenutzten Teasern (ohne Wiederholung der Themen von gestern/heute), bis max. 6 Artikel pro Tag (`KNALL_MAX_ARTIKEL_PRO_TAG`).
+- Weitere Läufe am selben Tag: Ist von heute nichts mehr offen, wählt KI0 neue Themen aus noch unbenutzten Teasern (ohne Wiederholung der Themen von gestern/heute), höchstens 3 neue pro Lauf. Eine Tagesgrenze gibt es nicht; es bremst das Gratis-Kontingent. Optional begrenzt `KNALL_MAX_ARTIKEL_PRO_TAG` (Default 0 = keine Grenze). KI0 schreibt ins Log, was es vorgeschlagen hat und warum Vorschläge verworfen wurden.
 - SSH-Host-Schlüssel (Deploy-Server, Mirror) werden beim ersten Deploy gemerkt (Cache `sftp-hostkey-v1` / `mirror-hostkey-v1`) und danach strikt geprüft. Bei legitimem Schlüsselwechsel den Cache löschen.
 - publish.py prüft die Freigabe ein zweites Mal (`ampel_final == "gruen"` und `freigabe_final`).
 
