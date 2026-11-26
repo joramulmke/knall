@@ -559,10 +559,12 @@ def llm_json(prompt, model=None, max_tokens=DEFAULT_MAX_TOKENS, temperature=0.0)
 
 
 # ---------- Maschinelle Cluster-Prüfung (nach KI0) ----------
-# KI0 hängt mitunter fremde Artikel an ein Thema („Weihnachten im Kerzenschein“
-# als Zweitquelle zum Heizungsausfall). Eine Zweitquelle bleibt nur, wenn sie
-# mit der Hauptquelle genug gemeinsame Ankerwörter hat (Namen, Orte, Sachwörter,
-# Zahlen). Kein Modell, keine Anfrage — reine Wortüberschneidung.
+# KI0 hängte mitunter fremde Artikel an ein Thema („Weihnachten im Kerzenschein“
+# als Zweitquelle zum Heizungsausfall). Deshalb werden die Kandidaten VOR KI0
+# maschinell zu Themengruppen gebündelt: Ein Artikel kommt nur dann zur Gruppe,
+# wenn er mit deren Hauptquelle genug gemeinsame Ankerwörter hat (Namen, Orte,
+# Sachwörter, Zahlen). KI0 darf nur innerhalb einer Gruppe bündeln.
+# Kein Modell, keine Anfrage — reine Wortüberschneidung.
 CLUSTER_MIN_ANKER = 3
 ANKER_MIN_LAENGE = 6             # kurze Wörter sind zu unspezifisch
 ANKER_STAMM = 7                  # grober Stamm: „Heizungsausfall“ ~ „Heizungen“ nicht, „Festnahmen“ ~ „Festnahme“ ja
@@ -598,21 +600,38 @@ def _kandidat_text(item):
     return f"{item.get('title', '')} {(item.get('volltext') or item.get('summary') or '')[:1500]}"
 
 
-def cluster_pruefen(ids, items):
-    """Hauptquelle (erste ID) bleibt; Zweitquellen ohne Themenbezug fliegen raus."""
-    if len(ids) < 2:
-        return ids
-    haupt = _kandidat_text(items[ids[0]])
-    behalten = [ids[0]]
-    for i in ids[1:]:
-        ok, gemeinsam = passt_zum_thema(haupt, _kandidat_text(items[i]))
-        titel = items[i].get("title", "")[:70]
-        if ok:
-            behalten.append(i)
+def gruppieren(items):
+    """Kandidaten (nach Score sortiert) → {id: gruppen_nr}. Jede Gruppe startet
+    mit ihrer stärksten Quelle; spätere Artikel schließen sich der ersten
+    Gruppe an, mit deren Hauptquelle sie genug Anker teilen."""
+    koepfe = []                  # (gruppen_nr, anker der Hauptquelle)
+    gruppe = {}
+    for item in items:
+        a = anker(_kandidat_text(item))
+        for nr, kopf in koepfe:
+            if len(a & kopf) >= CLUSTER_MIN_ANKER:
+                gruppe[item["id"]] = nr
+                break
         else:
-            print(f"  Cluster-Pruefung: '{titel}' passt nicht zur Hauptquelle "
-                  f"({len(gemeinsam)} gemeinsame Anker: {', '.join(sorted(gemeinsam)) or '-'}) — entfernt")
+            nr = len(koepfe) + 1
+            koepfe.append((nr, a))
+            gruppe[item["id"]] = nr
+    return gruppe
+
+
+def cluster_auf_gruppe(ids, gruppe, titel=None):
+    """Nur IDs aus der Gruppe der ersten ID behalten (Sicherung, falls KI0
+    sich nicht an die Gruppen hält)."""
+    if not ids:
+        return ids
+    g = gruppe.get(ids[0])
+    behalten = [i for i in ids if gruppe.get(i) == g]
+    for i in ids:
+        if i not in behalten:
+            print(f"  Cluster-Pruefung: '{(titel or {}).get(i, i)[:70]}' gehoert zu Gruppe "
+                  f"{gruppe.get(i)}, nicht {g} — entfernt")
     return behalten
+
 
 
 def curate():
@@ -676,11 +695,16 @@ def curate():
               f"(mind. {MIN_BUDGET_NEUER_ARTIKEL} fuer einen neuen Artikel noetig)")
         return
 
+    gruppe = gruppieren(top)
+    mehrfach = sum(1 for g in set(gruppe.values()) if list(gruppe.values()).count(g) > 1)
+    print(f"Themengruppen: {len(set(gruppe.values()))} (davon {mehrfach} mit mehreren Quellen)")
+    top.sort(key=lambda x: (gruppe[x["id"]], -(x.get("score") or 0)))
     bereits = [c.get("thema") for day in (prev_day(), today) for c in (load(day).get("cluster") or []) if c.get("thema")]
     listing = []
     for item in top:
         listing.append({
             "id": item["id"],
+            "gruppe": gruppe[item["id"]],
             "quelle": item["source_key"],
             "ressort": item.get("ressort_detected"),
             "titel": item["title"],
@@ -701,7 +725,7 @@ def curate():
         if not isinstance(c, dict):
             continue
         ids = [a for a in c.get("artikel_ids", []) if a in valid_ids and a not in benutzt][:3]
-        ids = cluster_pruefen(ids, {i["id"]: i for i in top})
+        ids = cluster_auf_gruppe(ids, gruppe, {i["id"]: i.get("title", "") for i in top})
         if ids:
             benutzt.update(ids)
             c["artikel_ids"] = ids

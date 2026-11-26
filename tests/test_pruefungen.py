@@ -420,7 +420,7 @@ def test_groq_wartet_vorab_bei_knappem_minutenfenster(monkeypatch, tmp_path):
     assert ki.groq_wartezeit("groq:andere", "x", jetzt) == 0      # unbekanntes Modell
 
 
-def test_cluster_pruefung_wirft_fremde_zweitquelle_raus():
+def test_themengruppen_vor_ki0():
     import ki_client as ki
     items = {
         "a": {"title": "Charlottenburg-Wilmersdorf: Weil Eigentümer nicht zahlen, 80 Wohnhäuser ohne Heizung",
@@ -433,5 +433,9 @@ def test_cluster_pruefung_wirft_fremde_zweitquelle_raus():
               "summary": "Weil Eigentümer offene Rechnungen nicht begleichen, bleiben 80 Wohnhäuser "
                          "in Charlottenburg-Wilmersdorf kalt. Das Bezirksamt sucht eine Lösung."},
     }
-    assert ki.cluster_pruefen(["a", "b", "c"], items) == ["a", "c"]
-    assert ki.cluster_pruefen(["b"], items) == ["b"]          # Einzelquelle bleibt
+    liste = [dict(v, id=k) for k, v in items.items()]
+    gruppe = ki.gruppieren(liste)
+    assert gruppe["a"] == gruppe["c"] != gruppe["b"]
+    # KI0 mischt trotzdem → maschinell wieder getrennt
+    assert ki.cluster_auf_gruppe(["a", "b", "c"], gruppe) == ["a", "c"]
+    assert ki.cluster_auf_gruppe(["b"], gruppe) == ["b"]      # Einzelquelle bleibt
