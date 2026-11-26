@@ -46,17 +46,54 @@
     },
     "warnung_kontingent": true
   },
+  "2026-11-26": {
+    "rot": 3,
+    "gelb": 0,
+    "ki3_stopp": 0,
+    "fehler": 0,
+    "abgelaufen": 0,
+    "published": 0,
+    "gruende": [
+      "KI2 rot/gelb-erschoepft",
+      "Sonderpruefung nicht bestanden",
+      "KI2 rot/gelb-erschoepft"
+    ],
+    "warnung_rot_quote": true,
+    "anfragen": {
+      "anfragen": 4,
+      "groq_anfragen": 17,
+      "ok": 0,
+      "groq_ok": 9,
+      "r429": 4,
+      "groq_r429": 8,
+      "fehler": 0,
+      "groq_fehler": 0,
+      "leer": 0,
+      "groq_leer": 0,
+      "modelle": {
+        "google/gemma-4-26b-a4b-it:free": 2,
+        "groq:openai/gpt-oss-120b": 17,
+        "google/gemma-4-31b-it:free": 2
+      },
+      "limit": 50,
+      "groq_limit": 900,
+      "gesperrt_bis": {
+        "google/gemma-4-26b-a4b-it:free": 1795668788,
+        "google/gemma-4-31b-it:free": 1795668805
+      }
+    }
+  },
   "_kontingent": {
-    "tage": 1,
+    "tage": 2,
     "limit": 50,
-    "schnitt_anfragen": 50.0,
+    "schnitt_anfragen": 27.0,
     "max_anfragen": 50,
     "tage_am_limit": 1,
     "tage_ueber_80_prozent": 1,
-    "r429_gesamt": 20,
-    "anteil_429": 0.4,
-    "groq_schnitt_anfragen": 41.0,
-    "groq_r429_gesamt": 14,
+    "r429_gesamt": 24,
+    "anteil_429": 0.444,
+    "groq_schnitt_anfragen": 29.0,
+    "groq_r429_gesamt": 22,
     "im_kontingent": false
   },
   "_volltext": {
@@ -91,9 +128,9 @@
       "tage": 1
     },
     "bt_gesundheit": {
-      "ok": 3,
+      "ok": 4,
       "blockiert": 1,
-      "tage": 1
+      "tage": 2
     },
     "bt_haushalt": {
       "ok": 1,
@@ -113,7 +150,7 @@
     "bt_petitionen": {
       "ok": 0,
       "blockiert": 0,
-      "tage": 1
+      "tage": 2
     },
     "bt_umwelt_klima": {
       "ok": 0,
@@ -123,7 +160,7 @@
     "bt_wirtschaft_energie": {
       "ok": 2,
       "blockiert": 1,
-      "tage": 1
+      "tage": 2
     },
     "bt_wohnen": {
       "ok": 0,
@@ -141,9 +178,9 @@
       "tage": 1
     },
     "deutschlandfunk": {
-      "ok": 3,
+      "ok": 4,
       "blockiert": 2,
-      "tage": 1
+      "tage": 2
     },
     "dgb_pm": {
       "ok": 1,
@@ -166,24 +203,29 @@
       "tage": 1
     },
     "l_iz": {
-      "ok": 5,
+      "ok": 10,
       "blockiert": 0,
-      "tage": 1
+      "tage": 2
     },
     "lr_online": {
-      "ok": 2,
-      "blockiert": 1,
-      "tage": 1
+      "ok": 3,
+      "blockiert": 3,
+      "tage": 2
     },
     "mdr_sachsen": {
-      "ok": 1,
+      "ok": 3,
+      "blockiert": 2,
+      "tage": 2
+    },
+    "mdr_sachsen_anhalt": {
+      "ok": 2,
       "blockiert": 0,
       "tage": 1
     },
     "mdr_thueringen": {
-      "ok": 2,
-      "blockiert": 2,
-      "tage": 1
+      "ok": 3,
+      "blockiert": 4,
+      "tage": 2
     },
     "moz": {
       "ok": 1,
@@ -196,14 +238,14 @@
       "tage": 1
     },
     "nd_gesamt": {
-      "ok": 3,
+      "ok": 9,
       "blockiert": 0,
-      "tage": 1
+      "tage": 2
     },
     "ndr_mv": {
-      "ok": 1,
+      "ok": 7,
       "blockiert": 0,
-      "tage": 1
+      "tage": 2
     },
     "netzpolitik": {
       "ok": 6,
@@ -211,9 +253,9 @@
       "tage": 1
     },
     "nordkurier": {
-      "ok": 6,
+      "ok": 12,
       "blockiert": 0,
-      "tage": 1
+      "tage": 2
     },
     "ossl": {
       "ok": 0,
@@ -221,9 +263,9 @@
       "tage": 1
     },
     "rbb24": {
-      "ok": 6,
+      "ok": 12,
       "blockiert": 0,
-      "tage": 1
+      "tage": 2
     },
     "saechsische": {
       "ok": 0,
@@ -231,9 +273,9 @@
       "tage": 1
     },
     "schwulissimo": {
-      "ok": 6,
+      "ok": 8,
       "blockiert": 0,
-      "tage": 1
+      "tage": 2
     },
     "sz_politik": {
       "ok": 4,
@@ -246,14 +288,14 @@
       "tage": 1
     },
     "tagesschau": {
-      "ok": 6,
+      "ok": 7,
       "blockiert": 0,
-      "tage": 1
+      "tage": 2
     },
     "taz_gesamt": {
-      "ok": 6,
+      "ok": 11,
       "blockiert": 0,
-      "tage": 1
+      "tage": 2
     },
     "test_de": {
       "ok": 1,
@@ -276,9 +318,9 @@
       "tage": 1
     },
     "volksstimme": {
-      "ok": 2,
-      "blockiert": 0,
-      "tage": 1
+      "ok": 5,
+      "blockiert": 2,
+      "tage": 2
     }
   }
 }
