@@ -133,6 +133,10 @@ jobs:
 
       - name: Build site
         if: always()
+        env:
+          # Öffentliche Adresse für Vorschaukarten, Feed und Sitemap.
+          # Eigene Domain später: Repo-Variable KNALL_URL setzen.
+          KNALL_URL: ${{ vars.KNALL_URL || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}
         run: python scripts/build_site.py
 
       - name: Commit pipeline output

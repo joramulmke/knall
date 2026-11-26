@@ -411,6 +411,11 @@ definitions:
     name: "bpb"
     url: https://www.bpb.de/rss-feed/203612.rss
     ressort: all
+  surplus_magazin:
+    type: nativ
+    name: "Surplus Magazin"
+    url: https://mastodon.social/@surplusmagazin.rss
+    ressort: all
 
 # --- Score-Gewichte (score.py) ---
 scores:
