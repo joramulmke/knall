@@ -47,13 +47,14 @@
     "warnung_kontingent": true
   },
   "2026-11-26": {
-    "rot": 7,
+    "rot": 8,
     "gelb": 0,
     "ki3_stopp": 0,
     "fehler": 0,
     "abgelaufen": 0,
-    "published": 1,
+    "published": 2,
     "gruende": [
+      "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
@@ -65,18 +66,18 @@
     "warnung_rot_quote": true,
     "anfragen": {
       "anfragen": 20,
-      "groq_anfragen": 41,
+      "groq_anfragen": 55,
       "ok": 0,
-      "groq_ok": 33,
+      "groq_ok": 44,
       "r429": 20,
-      "groq_r429": 8,
+      "groq_r429": 11,
       "fehler": 0,
       "groq_fehler": 0,
       "leer": 0,
       "groq_leer": 0,
       "modelle": {
         "google/gemma-4-26b-a4b-it:free": 12,
-        "groq:openai/gpt-oss-120b": 41,
+        "groq:openai/gpt-oss-120b": 55,
         "google/gemma-4-31b-it:free": 8
       },
       "limit": 50,
@@ -87,8 +88,8 @@
       },
       "groq_fenster": {
         "groq:openai/gpt-oss-120b": {
-          "rest": 5495,
-          "frei_ab": 1795692015.5
+          "rest": 4998,
+          "frei_ab": 1795693100.1
         }
       }
     }
@@ -102,8 +103,8 @@
     "tage_ueber_80_prozent": 1,
     "r429_gesamt": 40,
     "anteil_429": 0.571,
-    "groq_schnitt_anfragen": 41.0,
-    "groq_r429_gesamt": 22,
+    "groq_schnitt_anfragen": 48.0,
+    "groq_r429_gesamt": 25,
     "im_kontingent": false
   },
   "_volltext": {
@@ -325,6 +326,11 @@
     "test_de": {
       "ok": 1,
       "blockiert": 2,
+      "tage": 1
+    },
+    "test_de_presse": {
+      "ok": 6,
+      "blockiert": 0,
       "tage": 1
     },
     "thueringer_allgemeine": {
