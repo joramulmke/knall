@@ -1,0 +1,100 @@
+{
+  "thema": "Rechtsextreme Jugendgruppe plant Anschlag",
+  "ressort": "alle-gleich",
+  "quellen": [
+    {
+      "titel": "\"Terror 18\": Rechtsextreme Jugendgruppe plante offenbar Anschlag - Festnahmen",
+      "url": "https://www.ndr.de/nachrichten/niedersachsen/lueneburg_heide_unterelbe/rechtsextreme-jugendgruppe-terror-18-beschuldigte-wieder-frei,terror-176.html",
+      "medium": "NDR"
+    }
+  ],
+  "quellen_verworfen": 0,
+  "ablehnungsgruende": [
+    "KI2 rot/gelb-erschoepft"
+  ],
+  "abbruch": false,
+  "gelb_erschoepft": false,
+  "ki2_endampel": "rot",
+  "ki2_validierung": [
+    {
+      "ampel": "rot",
+      "gruende": []
+    }
+  ],
+  "ki2": {
+    "ampel": "rot",
+    "titel_befund": "rot",
+    "saetze": [
+      {
+        "satz_nr": 0,
+        "befund": "rot",
+        "pruefposten": [
+          "P5"
+        ]
+      },
+      {
+        "satz_nr": 1,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 2,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 3,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 4,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 5,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 6,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 7,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 8,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 9,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 10,
+        "befund": "rot",
+        "pruefposten": [
+          "P9"
+        ]
+      }
+    ]
+  },
+  "special_checks": {
+    "bestaende": true,
+    "zahlen_fehler": 0,
+    "entities_fehler": 0,
+    "plagiat": false,
+    "injection": false,
+    "leer": false
+  },
+  "ki3": null,
+  "ki3_validierung": null,
+  "ki3_nachbesserung": false
+}

@@ -1,0 +1,95 @@
+{
+  "thema": "Arzt angeklagt nach tödlicher Spritze",
+  "ressort": "pflege",
+  "quellen": [
+    {
+      "titel": "Patientin stirbt nach Spritze – Berliner Arzt angeklagt",
+      "url": "https://www.rbb24.de/panorama/beitrag/2026/11/berlin-arzt-vorwurf-fahrlaessige-toetung-spritze-patientin.html",
+      "medium": "rbb24"
+    }
+  ],
+  "quellen_verworfen": 0,
+  "ablehnungsgruende": [
+    "KI2 rot/gelb-erschoepft"
+  ],
+  "abbruch": false,
+  "gelb_erschoepft": false,
+  "ki2_endampel": "rot",
+  "ki2_validierung": [
+    {
+      "ampel": "rot",
+      "gruende": []
+    }
+  ],
+  "ki2": {
+    "ampel": "rot",
+    "titel_befund": "ok",
+    "saetze": [
+      {
+        "satz_nr": 0,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 1,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 2,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 3,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 4,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 5,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 6,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 7,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 8,
+        "befund": "rot",
+        "pruefposten": [
+          "P7"
+        ]
+      },
+      {
+        "satz_nr": 9,
+        "befund": "rot",
+        "pruefposten": [
+          "P7"
+        ]
+      }
+    ]
+  },
+  "special_checks": {
+    "bestaende": true,
+    "zahlen_fehler": 0,
+    "entities_fehler": 0,
+    "plagiat": false,
+    "injection": false,
+    "leer": false
+  },
+  "ki3": null,
+  "ki3_validierung": null,
+  "ki3_nachbesserung": false
+}

@@ -47,7 +47,7 @@
     "warnung_kontingent": true
   },
   "2026-11-26": {
-    "rot": 3,
+    "rot": 6,
     "gelb": 0,
     "ki3_stopp": 0,
     "fehler": 0,
@@ -55,16 +55,19 @@
     "published": 0,
     "gruende": [
       "KI2 rot/gelb-erschoepft",
+      "KI2 rot/gelb-erschoepft",
       "Sonderpruefung nicht bestanden",
+      "KI2 rot/gelb-erschoepft",
+      "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft"
     ],
     "warnung_rot_quote": true,
     "anfragen": {
-      "anfragen": 8,
-      "groq_anfragen": 19,
+      "anfragen": 10,
+      "groq_anfragen": 27,
       "ok": 0,
-      "groq_ok": 11,
-      "r429": 8,
+      "groq_ok": 19,
+      "r429": 10,
       "groq_r429": 8,
       "fehler": 0,
       "groq_fehler": 0,
@@ -72,19 +75,19 @@
       "groq_leer": 0,
       "modelle": {
         "google/gemma-4-26b-a4b-it:free": 6,
-        "groq:openai/gpt-oss-120b": 19,
-        "google/gemma-4-31b-it:free": 2
+        "groq:openai/gpt-oss-120b": 27,
+        "google/gemma-4-31b-it:free": 4
       },
       "limit": 50,
       "groq_limit": 900,
       "gesperrt_bis": {
         "google/gemma-4-26b-a4b-it:free": 1795675898,
-        "google/gemma-4-31b-it:free": 1795668805
+        "google/gemma-4-31b-it:free": 1795676224
       },
       "groq_fenster": {
         "groq:openai/gpt-oss-120b": {
-          "rest": 1949,
-          "frei_ab": 1795675344.8
+          "rest": 4580,
+          "frei_ab": 1795675803.6
         }
       }
     }
@@ -92,20 +95,20 @@
   "_kontingent": {
     "tage": 2,
     "limit": 50,
-    "schnitt_anfragen": 29.0,
+    "schnitt_anfragen": 30.0,
     "max_anfragen": 50,
     "tage_am_limit": 1,
     "tage_ueber_80_prozent": 1,
-    "r429_gesamt": 28,
-    "anteil_429": 0.483,
-    "groq_schnitt_anfragen": 30.0,
+    "r429_gesamt": 30,
+    "anteil_429": 0.5,
+    "groq_schnitt_anfragen": 34.0,
     "groq_r429_gesamt": 22,
     "im_kontingent": false
   },
   "_volltext": {
     "bgh_entscheidungen": {
       "ok": 0,
-      "blockiert": 3,
+      "blockiert": 5,
       "tage": 2
     },
     "bgh_pressemitteilungen": {
@@ -129,8 +132,8 @@
       "tage": 2
     },
     "bt_familie_senioren": {
-      "ok": 0,
-      "blockiert": 4,
+      "ok": 1,
+      "blockiert": 5,
       "tage": 2
     },
     "bt_gesundheit": {
@@ -144,7 +147,7 @@
       "tage": 2
     },
     "bt_hib": {
-      "ok": 2,
+      "ok": 3,
       "blockiert": 6,
       "tage": 2
     },
@@ -320,7 +323,7 @@
     },
     "thueringer_allgemeine": {
       "ok": 0,
-      "blockiert": 6,
+      "blockiert": 7,
       "tage": 2
     },
     "umweltbundesamt": {
