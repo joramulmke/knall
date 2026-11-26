@@ -10,8 +10,8 @@
       "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
-      "KI3-Nachbesserung nicht anwendbar (1 Stelle(n) nicht gefunden)",
-      "KI2 rot/gelb-erschoepft"
+      "KI2 rot/gelb-erschoepft",
+      "KI3-Nachbesserung nicht anwendbar (1 Stelle(n) nicht gefunden)"
     ],
     "warnung_rot_quote": true,
     "anfragen": {
@@ -56,9 +56,9 @@
     "gruende": [
       "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
-      "KI2 rot/gelb-erschoepft",
-      "KI2 rot/gelb-erschoepft",
       "Sonderpruefung nicht bestanden",
+      "KI2 rot/gelb-erschoepft",
+      "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft"
@@ -66,9 +66,9 @@
     "warnung_rot_quote": true,
     "anfragen": {
       "anfragen": 20,
-      "groq_anfragen": 57,
+      "groq_anfragen": 58,
       "ok": 0,
-      "groq_ok": 46,
+      "groq_ok": 47,
       "r429": 20,
       "groq_r429": 11,
       "fehler": 0,
@@ -79,7 +79,7 @@
         "google/gemma-4-26b-a4b-it:free": 12,
         "groq:openai/gpt-oss-120b": 56,
         "google/gemma-4-31b-it:free": 8,
-        "groq:openai/gpt-oss-20b": 1
+        "groq:openai/gpt-oss-20b": 2
       },
       "limit": 50,
       "groq_limit": 900,
@@ -93,8 +93,8 @@
           "frei_ab": 1795709696.1
         },
         "groq:openai/gpt-oss-20b": {
-          "rest": 429,
-          "frei_ab": 1795710300.3
+          "rest": 1766,
+          "frei_ab": 1795727824.6
         }
       }
     }
@@ -108,7 +108,7 @@
     "tage_ueber_80_prozent": 1,
     "r429_gesamt": 40,
     "anteil_429": 0.571,
-    "groq_schnitt_anfragen": 49.0,
+    "groq_schnitt_anfragen": 49.5,
     "groq_r429_gesamt": 25,
     "im_kontingent": false
   },
