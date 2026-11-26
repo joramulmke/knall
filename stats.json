@@ -66,9 +66,9 @@
     "warnung_rot_quote": true,
     "anfragen": {
       "anfragen": 20,
-      "groq_anfragen": 55,
+      "groq_anfragen": 56,
       "ok": 0,
-      "groq_ok": 44,
+      "groq_ok": 45,
       "r429": 20,
       "groq_r429": 11,
       "fehler": 0,
@@ -77,7 +77,7 @@
       "groq_leer": 0,
       "modelle": {
         "google/gemma-4-26b-a4b-it:free": 12,
-        "groq:openai/gpt-oss-120b": 55,
+        "groq:openai/gpt-oss-120b": 56,
         "google/gemma-4-31b-it:free": 8
       },
       "limit": 50,
@@ -88,8 +88,8 @@
       },
       "groq_fenster": {
         "groq:openai/gpt-oss-120b": {
-          "rest": 4998,
-          "frei_ab": 1795693100.1
+          "rest": 1832,
+          "frei_ab": 1795709696.1
         }
       }
     }
@@ -103,7 +103,7 @@
     "tage_ueber_80_prozent": 1,
     "r429_gesamt": 40,
     "anteil_429": 0.571,
-    "groq_schnitt_anfragen": 48.0,
+    "groq_schnitt_anfragen": 48.5,
     "groq_r429_gesamt": 25,
     "im_kontingent": false
   },
