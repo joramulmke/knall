@@ -439,3 +439,59 @@ def test_themengruppen_vor_ki0():
     # KI0 mischt trotzdem → maschinell wieder getrennt
     assert ki.cluster_auf_gruppe(["a", "b", "c"], gruppe) == ["a", "c"]
     assert ki.cluster_auf_gruppe(["b"], gruppe) == ["b"]      # Einzelquelle bleibt
+
+
+def _rot_prot(titel="ok", sys_fehler=None):
+    return {"ampel": "rot", "titel_befund": titel, "systemfehler": sys_fehler,
+            "saetze": [{"satz_nr": 0, "text": "Titel", "befund": titel, "verstoesse": []},
+                       {"satz_nr": 1, "text": "Erfunden.", "befund": "rot",
+                        "verstoesse": [{"pruefposten": "P7", "erklaerung": "nicht in Quelle"}]}]}
+
+
+def test_rot_hinweis_nur_bei_sauberem_protokoll():
+    from router import rot_hinweis
+    h = rot_hinweis(_rot_prot(titel="rot"), [])
+    assert "Satz 1" in h and "P7" in h and "Titel" in h
+    assert rot_hinweis(_rot_prot(), ["Satz 3 fehlt im Protokoll"]) is None
+    assert rot_hinweis(_rot_prot(sys_fehler="kaputt"), []) is None
+
+
+def _evaluate_setup(monkeypatch, ampeln):
+    import router
+    import ki_client
+    import special_checks
+    draft = {"stage": "geschrieben", "text": "Alt", "cluster": {"thema": "T"}}
+    path = pathlib.Path("2026-01-01-draft-0.json")
+    folge = iter(ampeln)
+    aufrufe = {"ki1": 0, "abgelehnt": None}
+
+    def ki2(text, quellen):
+        a = next(folge)
+        return a, (_rot_prot() if a == "rot" else {"saetze": []}), []
+
+    def ki1(prompt, model=None):
+        aufrufe["ki1"] += 1
+        assert "beanstandet" in prompt and "Erfunden." in prompt
+        return "Neu"
+
+    monkeypatch.setattr(router, "load_drafts", lambda: [("2026-01-01", path, draft)])
+    monkeypatch.setattr(router, "sources_from_cluster", lambda c, t: ("Q", [], []))
+    monkeypatch.setattr(router, "ki2_check", ki2)
+    monkeypatch.setattr(router, "regex_runden", lambda t, *a, **k: (t, [], 0))
+    monkeypatch.setattr(router, "write_json", lambda p, o: None)
+    monkeypatch.setattr(router, "reject", lambda t, n, d, g: aufrufe.update(abgelehnt=g))
+    monkeypatch.setattr(ki_client, "llm_call", ki1)
+    monkeypatch.setattr(special_checks, "run_all", lambda t, q: {"bestaende": True})
+    router.evaluate_stage()
+    return draft, aufrufe
+
+
+def test_rot_bekommt_eine_ki1_korrektur_dann_gruen(monkeypatch):
+    draft, aufrufe = _evaluate_setup(monkeypatch, ["rot", "gruen"])
+    assert aufrufe["ki1"] == 1 and draft["stage"] == "gruen" and draft["text"] == "Neu"
+    assert draft["ki2_pruefrunden"] == 2 and aufrufe["abgelehnt"] is None
+
+
+def test_rot_nach_korrektur_wird_abgelehnt(monkeypatch):
+    draft, aufrufe = _evaluate_setup(monkeypatch, ["rot", "rot"])
+    assert aufrufe["ki1"] == 1 and aufrufe["abgelehnt"] == "KI2 rot/gelb-erschoepft"

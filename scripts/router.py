@@ -6,6 +6,9 @@ Kernregeln (keine menschliche Freigabe → fail-closed):
 - Nur KI2 vergibt grün, und nur wenn safety.ki2_verdict() das Protokoll
   als vollständig und eindeutig "gruen" bestätigt. Alles andere = rot.
 - Jede Gelb-Korrektur führt zurück vor KI2 (max. 2 Runden, dann rot).
+- Rot mit sauberem Protokoll (einzelne Sätze/Titel beanstandet) bekommt
+  EINE Korrektur durch KI1 (streichen oder enger an der Quelle), danach
+  wieder volle KI2-Prüfung und Sonderprüfungen. Wieder rot → abgelehnt.
 - Sonderprüfungen laufen IMMER, auch nach grün.
 - Regex-Gate läuft nach JEDER Textänderung (KI1-Entwurf, Gelb-Korrektur,
   KI3-Ersatzformulierung) — nicht nur nach dem ersten Entwurf.
@@ -27,6 +30,7 @@ Ein erneuter Lauf (drafts/ + sources/ kommen aus dem Actions-Cache)
 offenen Entwürfe von GESTERN, dann die von heute (common.work_days()).
 Inhaltliche Ablehnungen werden NIE wiederholt.
 """
+import os
 import json
 import re
 import sys
@@ -42,6 +46,9 @@ REJECTED = ROOT / "rejected"
 # nie im Repo. Zum späteren Auswerten (scripts/archiv_auswerten.py).
 ARCHIV = ROOT / "archiv" / "abgelehnt"
 MAX_GELB_ROUNDS = 2
+# Rot von KI2 (Fakt-Verstoß in einzelnen Sätzen/Titel): so viele Korrekturrunden
+# durch KI1 mit anschließender voller KI2-Prüfung; 0 = sofort ablehnen
+MAX_ROT_ROUNDS = int(os.environ.get("KNALL_MAX_ROT_RUNDEN") or 1)
 MAX_REGEX_ROUNDS = 2
 
 
@@ -129,6 +136,7 @@ def redact(draft):
         "ablehnungsgruende": [grund_kurz(g) for g in draft.get("ablehnungsgruende", [])],
         "abbruch": bool(draft.get("abbruch")),
         "gelb_erschoepft": bool(draft.get("gelb_erschoepft")),
+        "rot_korrekturen": len(draft.get("rot_korrekturen") or []),
         "ki2_endampel": draft.get("ki2_endampel"),
         "ki2_validierung": validierung(draft.get("ki2_validierung")),
         "ki2": ki2_kurz(draft.get("ki2_protokoll")),
@@ -341,6 +349,32 @@ def gelb_hinweis(ki2_protokoll):
     return " ".join(teile) if teile else "Stil-Anmerkungen der Prüfung beachten."
 
 
+def rot_hinweis(ki2_protokoll, gruende):
+    """Korrekturtext aus den roten Befunden — oder None, wenn das Protokoll
+    nicht sauber ist (Systemfehler, unvollständig, widersprüchlich). Dann
+    gibt es keine Korrektur, sondern die Ablehnung."""
+    if gruende or not isinstance(ki2_protokoll, dict):
+        return None
+    if ki2_protokoll.get("systemfehler") not in (None, "", "null", False):
+        return None
+    teile = []
+    for satz in ki2_protokoll.get("saetze", []) or []:
+        if not isinstance(satz, dict) or str(satz.get("befund", "")).lower() != "rot":
+            continue
+        nr = satz.get("satz_nr")
+        wo = "Titel" if nr == 0 else f"Satz {nr}"
+        txt = str(satz.get("text") or "").strip()
+        gruende_satz = []
+        for v in satz.get("verstoesse", []) or []:
+            if isinstance(v, dict):
+                gruende_satz.append(f"{v.get('pruefposten', '?')}: {str(v.get('erklaerung') or '').strip()}")
+        teile.append(f"- {wo}" + (f" „{txt}“" if txt else "") + " — " + ("; ".join(gruende_satz) or "Fakt-Verstoß"))
+    titel_rot = str(ki2_protokoll.get("titel_befund", "")).lower() == "rot"
+    if titel_rot and not any(t.startswith("- Titel") for t in teile):
+        teile.append("- Titel — Fakt-Verstoß (P10)")
+    return "\n".join(teile) if teile else None
+
+
 def ki2_check(text, quellen):
     """Eine KI2-Prüfung + strenge Validierung. Rückgabe (ampel, protokoll, gründe)."""
     from ki_client import llm_json
@@ -375,13 +409,39 @@ def evaluate_stage():
             ki1_base = fill(ki1_tpl, QUELLEN=quellen)
             draft.pop("ki2_validierung", None)
             draft.pop("gelb_protokoll", None)
+            draft.pop("rot_korrekturen", None)
 
             rounds = 0
+            rot_rounds = 0
             while True:
                 ampel, protokoll, gruende = ki2_check(draft["text"], quellen)
                 verlauf(draft, "ki2", ampel=ampel, gruende=gruende, protokoll=protokoll)
                 draft["ki2_protokoll"] = protokoll
                 draft.setdefault("ki2_validierung", []).append({"ampel": ampel, "gruende": gruende})
+                if ampel == "rot":
+                    hinweis = rot_hinweis(protokoll, gruende) if rot_rounds < MAX_ROT_ROUNDS else None
+                    if not hinweis:
+                        break
+                    rot_rounds += 1
+                    print(f"  {name}: KI2 rot — Korrekturrunde {rot_rounds} durch KI1:\n{hinweis}")
+                    repair_prompt = (
+                        ki1_base
+                        + "\n\nDein bisheriger Text:\n<artikel>\n" + draft["text"] + "\n</artikel>\n\n"
+                        + "Die Faktenprüfung hat diese Stellen beanstandet:\n" + hinweis + "\n\n"
+                        + "Korrigiere NUR diese Stellen. Für jede beanstandete Stelle: Streiche den Satz, "
+                        + "oder schreibe ihn so um, dass er nur noch sagt, was ausdrücklich in den Quellen steht. "
+                        + "Ist der Titel beanstandet, schreibe einen neuen Titel nur mit Zahlen, Namen und "
+                        + "Vorwürfen, die genau so in den Quellen und im Text stehen. Füge nichts Neues hinzu. "
+                        + "Antworte mit dem kompletten korrigierten Artikel (Titel als erste Zeile)."
+                    )
+                    neu = llm_call(repair_prompt, model="LARGE").strip()
+                    verlauf(draft, "rot-korrektur", runde=rot_rounds, hinweis=hinweis, text=neu)
+                    neu, rest, rr = regex_runden(neu, ki1_base, quellen, draft, "regex-nach-rot")
+                    draft.setdefault("rot_korrekturen", []).append(
+                        {"runde": rot_rounds, "regex_runden": rr, "regex_rest": len(rest)})
+                    draft["text"] = neu
+                    write_json(dpath, draft)  # Zwischenstand sichern
+                    continue
                 if ampel != "gelb":
                     break
                 rounds += 1
@@ -404,7 +464,7 @@ def evaluate_stage():
                 draft["text"] = neu
                 write_json(dpath, draft)  # Zwischenstand sichern
 
-            draft["ki2_pruefrunden"] = rounds + 1
+            draft["ki2_pruefrunden"] = len(draft.get("ki2_validierung") or [])
             draft["ki2_endampel"] = ampel
             special = run_all(draft["text"], quellen)
             verlauf(draft, "sonderpruefung", ergebnis=special)
