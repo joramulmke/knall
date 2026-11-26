@@ -75,6 +75,12 @@ definitions:
     type: google-news-mirror
     query: "ver.di Pressemitteilung"
     ressort: kohle
+    aktiv: false   # ersetzt durch verdi_presseportal (Originalfeed)
+  verdi_presseportal:
+    type: nativ
+    name: "ver.di"
+    url: https://www.presseportal.de/rss/pm_32403.rss2?langid=1
+    ressort: kohle
   dgb_pm:
     type: google-news-mirror
     query: "DGB Pressemitteilung"
