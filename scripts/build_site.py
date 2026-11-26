@@ -202,7 +202,8 @@ def kopf_meta(base, beschreibung, artikel_ld):
     t = [
         f'<meta name="description" content="{e(beschreibung)}">',
         '<meta name="theme-color" content="#6d4aff">',
-        '<link rel="icon" href="favicon.svg" type="image/svg+xml">',
+        '<link rel="icon" href="icon.png" type="image/png">',
+        '<link rel="apple-touch-icon" href="icon.png">',
         f'<link rel="alternate" type="application/atom+xml" title="{e(SITE_TITEL)}" href="{e(base)}feed.xml">',
         '<meta property="og:type" content="website">',
         '<meta property="og:locale" content="de_DE">',
@@ -246,7 +247,7 @@ def atom_feed(base, eintraege, jetzt):
         f"<id>{x(base or 'urn:knall:feed')}</id>",
         f"<updated>{jetzt}</updated>",
         "<author><name>Knall</name></author>",
-        f'<icon>{x(base)}favicon.svg</icon>',
+        f'<icon>{x(base)}icon.png</icon>',
         f'<logo>{x(base)}og.png</logo>',
     ]
     for a in eintraege:
