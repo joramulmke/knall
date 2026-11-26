@@ -47,13 +47,14 @@
     "warnung_kontingent": true
   },
   "2026-11-26": {
-    "rot": 6,
+    "rot": 7,
     "gelb": 0,
     "ki3_stopp": 0,
     "fehler": 0,
     "abgelaufen": 0,
     "published": 1,
     "gruende": [
+      "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
       "Sonderpruefung nicht bestanden",
@@ -63,31 +64,31 @@
     ],
     "warnung_rot_quote": true,
     "anfragen": {
-      "anfragen": 16,
-      "groq_anfragen": 33,
+      "anfragen": 20,
+      "groq_anfragen": 41,
       "ok": 0,
-      "groq_ok": 25,
-      "r429": 16,
+      "groq_ok": 33,
+      "r429": 20,
       "groq_r429": 8,
       "fehler": 0,
       "groq_fehler": 0,
       "leer": 0,
       "groq_leer": 0,
       "modelle": {
-        "google/gemma-4-26b-a4b-it:free": 10,
-        "groq:openai/gpt-oss-120b": 33,
-        "google/gemma-4-31b-it:free": 6
+        "google/gemma-4-26b-a4b-it:free": 12,
+        "groq:openai/gpt-oss-120b": 41,
+        "google/gemma-4-31b-it:free": 8
       },
       "limit": 50,
       "groq_limit": 900,
       "gesperrt_bis": {
-        "google/gemma-4-26b-a4b-it:free": 1795680778,
-        "google/gemma-4-31b-it:free": 1795680794
+        "google/gemma-4-26b-a4b-it:free": 1795692424,
+        "google/gemma-4-31b-it:free": 1795692441
       },
       "groq_fenster": {
         "groq:openai/gpt-oss-120b": {
-          "rest": 4225,
-          "frei_ab": 1795680335.6
+          "rest": 5495,
+          "frei_ab": 1795692015.5
         }
       }
     }
@@ -95,13 +96,13 @@
   "_kontingent": {
     "tage": 2,
     "limit": 50,
-    "schnitt_anfragen": 33.0,
+    "schnitt_anfragen": 35.0,
     "max_anfragen": 50,
     "tage_am_limit": 1,
     "tage_ueber_80_prozent": 1,
-    "r429_gesamt": 36,
-    "anteil_429": 0.545,
-    "groq_schnitt_anfragen": 37.0,
+    "r429_gesamt": 40,
+    "anteil_429": 0.571,
+    "groq_schnitt_anfragen": 41.0,
     "groq_r429_gesamt": 22,
     "im_kontingent": false
   },
@@ -340,6 +341,11 @@
       "ok": 2,
       "blockiert": 0,
       "tage": 2
+    },
+    "verdi_presseportal": {
+      "ok": 6,
+      "blockiert": 0,
+      "tage": 1
     },
     "volksstimme": {
       "ok": 6,
