@@ -396,3 +396,42 @@ def test_alte_quelle_wird_in_den_ki_stufen_verworfen(tmp_path, monkeypatch):
     assert meta[0]["medium"] == "Haufe"
     text, dropped, meta = router.sources_from_cluster({"artikel_ids": ["a"]}, "2026-11-25", alt_verwerfen=False)
     assert dropped == []
+
+
+@pytest.mark.parametrize("wert,sek", [
+    ("7.66s", 7.66), ("1m2.5s", 62.5), ("350ms", 0.35), ("", None), ("quatsch", None),
+])
+def test_groq_dauer(wert, sek):
+    import ki_client
+    assert ki_client._dauer_s(wert) == sek
+
+
+def test_groq_wartet_vorab_bei_knappem_minutenfenster(monkeypatch, tmp_path):
+    ki, schlaf, _ = _ki_setup(monkeypatch, tmp_path)
+    m = "groq:openai/gpt-oss-120b"
+    ki._merke_groq_fenster(m, {"x-ratelimit-remaining-tokens": "500",
+                               "x-ratelimit-reset-tokens": "20s"})
+    jetzt = ki.time.time()
+    assert 15 < ki.groq_wartezeit(m, "x" * 3000, jetzt) <= 22   # Bedarf > 500 frei
+    assert ki.groq_wartezeit(m, "x" * 3000, jetzt + 30) == 0     # Fenster erneuert
+    ki._merke_groq_fenster(m, {"x-ratelimit-remaining-tokens": "7000",
+                               "x-ratelimit-reset-tokens": "5s"})
+    assert ki.groq_wartezeit(m, "x" * 3000, jetzt) == 0          # genug frei
+    assert ki.groq_wartezeit("groq:andere", "x", jetzt) == 0      # unbekanntes Modell
+
+
+def test_cluster_pruefung_wirft_fremde_zweitquelle_raus():
+    import ki_client as ki
+    items = {
+        "a": {"title": "Charlottenburg-Wilmersdorf: Weil Eigentümer nicht zahlen, 80 Wohnhäuser ohne Heizung",
+              "summary": "Im Bezirk Charlottenburg-Wilmersdorf sitzen Mieter in 80 Wohnhäusern ohne Heizung. "
+                         "Die Eigentümer zahlen die Rechnungen des Versorgers nicht, das Bezirksamt prüft."},
+        "b": {"title": "Weihnachten im Kerzenschein",
+              "summary": "Leipzig stimmt sich auf die Adventszeit ein. Auf dem Weihnachtsmarkt leuchten "
+                         "Kerzen, Familien besuchen die Buden."},
+        "c": {"title": "Mieter in Charlottenburg frieren: Versorger stellt Heizung ab",
+              "summary": "Weil Eigentümer offene Rechnungen nicht begleichen, bleiben 80 Wohnhäuser "
+                         "in Charlottenburg-Wilmersdorf kalt. Das Bezirksamt sucht eine Lösung."},
+    }
+    assert ki.cluster_pruefen(["a", "b", "c"], items) == ["a", "c"]
+    assert ki.cluster_pruefen(["b"], items) == ["b"]          # Einzelquelle bleibt

@@ -229,48 +229,56 @@ definitions:
     url: https://www.bundesgerichtshof.de/DE/Service/RSSFeed/Function/RSS_EN.xml?nn=373238
     datum: feed
     ressort: woche
+    aktiv: false   # 2026-11-26: Seiten liefern kaum Text (28 Zeichen); Pressemitteilungen decken BGH ab
   rii_bverfg:
     type: nativ
     name: "Bundesverfassungsgericht"
     url: https://www.rechtsprechung-im-internet.de/jportal/docs/feed/bsjrs-bverfg.xml
     datum: feed
     ressort: alle-gleich
+    aktiv: false   # 2026-11-26: Verbindungs-Timeout von den Runnern aus (blockiert)
   rii_bgh:
     type: nativ
     name: "Bundesgerichtshof"
     url: https://www.rechtsprechung-im-internet.de/jportal/docs/feed/bsjrs-bgh.xml
     datum: feed
     ressort: woche
+    aktiv: false   # 2026-11-26: Verbindungs-Timeout von den Runnern aus (blockiert)
   rii_bverwg:
     type: nativ
     name: "Bundesverwaltungsgericht"
     url: https://www.rechtsprechung-im-internet.de/jportal/docs/feed/bsjrs-bverwg.xml
     datum: feed
     ressort: klima
+    aktiv: false   # 2026-11-26: Verbindungs-Timeout von den Runnern aus (blockiert)
   rii_bfh:
     type: nativ
     name: "Bundesfinanzhof"
     url: https://www.rechtsprechung-im-internet.de/jportal/docs/feed/bsjrs-bfh.xml
     datum: feed
     ressort: woche
+    aktiv: false   # 2026-11-26: Verbindungs-Timeout von den Runnern aus (blockiert)
   rii_bag:
     type: nativ
     name: "Bundesarbeitsgericht"
     url: https://www.rechtsprechung-im-internet.de/jportal/docs/feed/bsjrs-bag.xml
     datum: feed
     ressort: kohle
+    aktiv: false   # 2026-11-26: Verbindungs-Timeout von den Runnern aus (blockiert)
   rii_bsg:
     type: nativ
     name: "Bundessozialgericht"
     url: https://www.rechtsprechung-im-internet.de/jportal/docs/feed/bsjrs-bsg.xml
     datum: feed
     ressort: kohle
+    aktiv: false   # 2026-11-26: Verbindungs-Timeout von den Runnern aus (blockiert)
   rii_bpatg:
     type: nativ
     name: "Bundespatentgericht"
     url: https://www.rechtsprechung-im-internet.de/jportal/docs/feed/bsjrs-bpatg.xml
     datum: feed
     ressort: woche
+    aktiv: false   # 2026-11-26: Verbindungs-Timeout von den Runnern aus (blockiert)
 
   # ---------- Bundestag (bundestag.de) ----------
   # 2026-11-25 ergänzt: hib-Kurzmeldungen, Pressemitteilungen und die Themenfeeds,
@@ -345,6 +353,7 @@ definitions:
     name: "Europäisches Parlament"
     url: https://www.europarl.europa.eu/rss/doc/press-releases/de.xml
     ressort: all
+    aktiv: false   # 2026-11-26: liefert HTTP 202 ohne Inhalt (Bot-Schutz)
   dlf_politik:
     type: nativ
     name: "Deutschlandfunk"
