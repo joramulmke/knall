@@ -63,31 +63,31 @@
     ],
     "warnung_rot_quote": true,
     "anfragen": {
-      "anfragen": 10,
-      "groq_anfragen": 27,
+      "anfragen": 12,
+      "groq_anfragen": 28,
       "ok": 0,
-      "groq_ok": 19,
-      "r429": 10,
+      "groq_ok": 20,
+      "r429": 12,
       "groq_r429": 8,
       "fehler": 0,
       "groq_fehler": 0,
       "leer": 0,
       "groq_leer": 0,
       "modelle": {
-        "google/gemma-4-26b-a4b-it:free": 6,
-        "groq:openai/gpt-oss-120b": 27,
+        "google/gemma-4-26b-a4b-it:free": 8,
+        "groq:openai/gpt-oss-120b": 28,
         "google/gemma-4-31b-it:free": 4
       },
       "limit": 50,
       "groq_limit": 900,
       "gesperrt_bis": {
-        "google/gemma-4-26b-a4b-it:free": 1795675898,
+        "google/gemma-4-26b-a4b-it:free": 1795676874,
         "google/gemma-4-31b-it:free": 1795676224
       },
       "groq_fenster": {
         "groq:openai/gpt-oss-120b": {
-          "rest": 4580,
-          "frei_ab": 1795675803.6
+          "rest": 2158,
+          "frei_ab": 1795676319.3
         }
       }
     }
@@ -95,20 +95,20 @@
   "_kontingent": {
     "tage": 2,
     "limit": 50,
-    "schnitt_anfragen": 30.0,
+    "schnitt_anfragen": 31.0,
     "max_anfragen": 50,
     "tage_am_limit": 1,
     "tage_ueber_80_prozent": 1,
-    "r429_gesamt": 30,
-    "anteil_429": 0.5,
-    "groq_schnitt_anfragen": 34.0,
+    "r429_gesamt": 32,
+    "anteil_429": 0.516,
+    "groq_schnitt_anfragen": 34.5,
     "groq_r429_gesamt": 22,
     "im_kontingent": false
   },
   "_volltext": {
     "bgh_entscheidungen": {
       "ok": 0,
-      "blockiert": 5,
+      "blockiert": 7,
       "tage": 2
     },
     "bgh_pressemitteilungen": {
