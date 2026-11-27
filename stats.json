@@ -10,8 +10,8 @@
       "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
-      "KI3-Nachbesserung nicht anwendbar (1 Stelle(n) nicht gefunden)",
-      "KI2 rot/gelb-erschoepft"
+      "KI2 rot/gelb-erschoepft",
+      "KI3-Nachbesserung nicht anwendbar (1 Stelle(n) nicht gefunden)"
     ],
     "warnung_rot_quote": true,
     "anfragen": {
@@ -56,9 +56,9 @@
     "gruende": [
       "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
-      "KI2 rot/gelb-erschoepft",
-      "KI2 rot/gelb-erschoepft",
       "Sonderpruefung nicht bestanden",
+      "KI2 rot/gelb-erschoepft",
+      "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft"
@@ -105,13 +105,13 @@
     "ki3_stopp": 0,
     "fehler": 0,
     "abgelaufen": 0,
-    "published": 1,
+    "published": 4,
     "gruende": [],
     "anfragen": {
       "anfragen": 0,
-      "groq_anfragen": 8,
+      "groq_anfragen": 31,
       "ok": 0,
-      "groq_ok": 8,
+      "groq_ok": 31,
       "r429": 0,
       "groq_r429": 0,
       "fehler": 0,
@@ -119,19 +119,19 @@
       "leer": 0,
       "groq_leer": 0,
       "modelle": {
-        "groq:openai/gpt-oss-20b": 1,
-        "groq:openai/gpt-oss-120b": 7
+        "groq:openai/gpt-oss-20b": 2,
+        "groq:openai/gpt-oss-120b": 29
       },
       "limit": 50,
       "groq_limit": 900,
       "groq_fenster": {
         "groq:openai/gpt-oss-20b": {
-          "rest": 2667,
-          "frei_ab": 1795745862.2
+          "rest": 1929,
+          "frei_ab": 1795777325.0
         },
         "groq:openai/gpt-oss-120b": {
-          "rest": 3944,
-          "frei_ab": 1795746053.6
+          "rest": 2126,
+          "frei_ab": 1795777766.0
         }
       }
     }
@@ -145,7 +145,7 @@
     "tage_ueber_80_prozent": 1,
     "r429_gesamt": 40,
     "anteil_429": 0.571,
-    "groq_schnitt_anfragen": 35.7,
+    "groq_schnitt_anfragen": 43.3,
     "groq_r429_gesamt": 25,
     "im_kontingent": false
   },
@@ -181,7 +181,7 @@
       "tage": 2
     },
     "bt_gesundheit": {
-      "ok": 7,
+      "ok": 10,
       "blockiert": 1,
       "tage": 3
     },
@@ -216,14 +216,14 @@
       "tage": 2
     },
     "bt_wirtschaft_energie": {
-      "ok": 4,
-      "blockiert": 2,
+      "ok": 5,
+      "blockiert": 3,
       "tage": 3
     },
     "bt_wohnen": {
       "ok": 0,
       "blockiert": 0,
-      "tage": 2
+      "tage": 3
     },
     "bundesagentur_arbeit": {
       "ok": 0,
@@ -231,12 +231,12 @@
       "tage": 1
     },
     "destatis": {
-      "ok": 4,
+      "ok": 6,
       "blockiert": 0,
-      "tage": 2
+      "tage": 3
     },
     "deutschlandfunk": {
-      "ok": 9,
+      "ok": 12,
       "blockiert": 5,
       "tage": 3
     },
@@ -261,7 +261,7 @@
       "tage": 1
     },
     "junge_welt": {
-      "ok": 4,
+      "ok": 5,
       "blockiert": 4,
       "tage": 3
     },
@@ -271,8 +271,8 @@
       "tage": 3
     },
     "lr_online": {
-      "ok": 5,
-      "blockiert": 3,
+      "ok": 8,
+      "blockiert": 4,
       "tage": 3
     },
     "mdr_sachsen": {
@@ -286,8 +286,8 @@
       "tage": 2
     },
     "mdr_thueringen": {
-      "ok": 5,
-      "blockiert": 4,
+      "ok": 6,
+      "blockiert": 5,
       "tage": 3
     },
     "moz": {
@@ -301,7 +301,7 @@
       "tage": 1
     },
     "nd_gesamt": {
-      "ok": 11,
+      "ok": 14,
       "blockiert": 0,
       "tage": 3
     },
@@ -336,7 +336,7 @@
       "tage": 1
     },
     "schwulissimo": {
-      "ok": 14,
+      "ok": 18,
       "blockiert": 0,
       "tage": 3
     },
@@ -346,22 +346,22 @@
       "tage": 1
     },
     "sz_politik": {
-      "ok": 9,
-      "blockiert": 3,
+      "ok": 12,
+      "blockiert": 4,
       "tage": 3
     },
     "t_online": {
-      "ok": 7,
+      "ok": 13,
       "blockiert": 0,
-      "tage": 2
+      "tage": 3
     },
     "tagesschau": {
-      "ok": 14,
+      "ok": 18,
       "blockiert": 0,
       "tage": 3
     },
     "taz_gesamt": {
-      "ok": 14,
+      "ok": 18,
       "blockiert": 0,
       "tage": 3
     },
@@ -371,9 +371,9 @@
       "tage": 1
     },
     "test_de_alles": {
-      "ok": 6,
+      "ok": 11,
       "blockiert": 0,
-      "tage": 1
+      "tage": 2
     },
     "test_de_presse": {
       "ok": 7,
@@ -401,8 +401,8 @@
       "tage": 2
     },
     "volksstimme": {
-      "ok": 6,
-      "blockiert": 4,
+      "ok": 9,
+      "blockiert": 5,
       "tage": 3
     }
   }
