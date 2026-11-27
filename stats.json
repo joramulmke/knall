@@ -109,9 +109,9 @@
     "gruende": [],
     "anfragen": {
       "anfragen": 0,
-      "groq_anfragen": 55,
+      "groq_anfragen": 56,
       "ok": 0,
-      "groq_ok": 55,
+      "groq_ok": 56,
       "r429": 0,
       "groq_r429": 0,
       "fehler": 0,
@@ -119,15 +119,15 @@
       "leer": 0,
       "groq_leer": 0,
       "modelle": {
-        "groq:openai/gpt-oss-20b": 4,
+        "groq:openai/gpt-oss-20b": 5,
         "groq:openai/gpt-oss-120b": 51
       },
       "limit": 50,
       "groq_limit": 900,
       "groq_fenster": {
         "groq:openai/gpt-oss-20b": {
-          "rest": 1844,
-          "frei_ab": 1795814520.9
+          "rest": 1921,
+          "frei_ab": 1795818163.4
         },
         "groq:openai/gpt-oss-120b": {
           "rest": 5437,
@@ -145,7 +145,7 @@
     "tage_ueber_80_prozent": 1,
     "r429_gesamt": 40,
     "anteil_429": 0.571,
-    "groq_schnitt_anfragen": 51.3,
+    "groq_schnitt_anfragen": 51.7,
     "groq_r429_gesamt": 25,
     "im_kontingent": false
   },
@@ -172,7 +172,7 @@
     },
     "bt_arbeit_soziales": {
       "ok": 0,
-      "blockiert": 7,
+      "blockiert": 8,
       "tage": 3
     },
     "bt_familie_senioren": {
