@@ -29,7 +29,7 @@ import requests
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
-from build_site import anker, parse, safe_url, teaser, zeitstempel, zerlegen  # noqa: E402
+from build_site import alle_artikel, anker, safe_url, slugs_fuer, teaser, zeitstempel, zerlegen  # noqa: E402
 
 TAGE_ZURUECK = 2   # verpasste Läufe nachholen; der Dienst filtert Doppelte
 TIMEOUT = 20
@@ -39,15 +39,17 @@ AS = "application/activity+json"
 def artikel(base, heute):
     grenze = (heute - dt.timedelta(days=TAGE_ZURUECK)).isoformat()
     items = []
-    for p in sorted((ROOT / "published").glob("*.md")):
-        meta, body = parse(p.read_text(encoding="utf-8"))
+    alle = alle_artikel()
+    slugs = slugs_fuer(alle)
+    for stem, meta, body in reversed(alle):   # älteste zuerst, wie bisher
         datum = str(meta.get("datum", ""))[:10]
         if datum < grenze:
             continue
         titel, absaetze, _ = zerlegen(meta, body)
-        id_ = anker(p.stem)
+        # id bleibt die alte Sprungmarke — der Dienst erkennt daran Doppelte
+        id_ = anker(stem)
         items.append({"id": id_, "titel": titel, "teaser": teaser(absaetze),
-                      "url": f"{base}#{id_}", "published": zeitstempel(datum)})
+                      "url": f"{base}{slugs[stem]}/", "published": zeitstempel(datum)})
     return items
 
 

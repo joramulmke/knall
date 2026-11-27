@@ -7,6 +7,7 @@ ki2_ampel: "gruen"
 ki3: "freigabe"
 ki3_nachbesserung: false
 ki_generiert: true
+slug: "metallarbeiter-erhalten-4-3-prozent-lohnplus"
 ---
 
 Metallarbeiter erhalten 4,3 % Lohnplus – Arbeitgeber fordern unbezahlte Mehrarbeit

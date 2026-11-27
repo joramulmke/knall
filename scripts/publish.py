@@ -36,10 +36,12 @@ def main():
     import sys
     sys.path.insert(0, str(ROOT / "scripts"))
     from common import run_day, work_days
-    from build_site import knaller_abtrennen
+    from build_site import alle_artikel, knaller_abtrennen, slug_waehlen, slugs_fuer, zerlegen
     today = run_day()  # Veröffentlichungsdatum = heute, auch für Nachzügler von gestern
     (ROOT / "published").mkdir(exist_ok=True)
     count = 0
+    # Belegte Adressen (inkl. Altbestand ohne slug:) — neue Artikel nehmen nie eine davon
+    belegt = set(slugs_fuer(alle_artikel()).values())
     dpaths = [p for day in work_days() for p in sorted((ROOT / "drafts").glob(f"{day}-draft-*.json"))]
     for dpath in dpaths:
         draft = json.loads(dpath.read_text(encoding="utf-8"))
@@ -72,6 +74,9 @@ def main():
         body, knaller = knaller_abtrennen(draft["text"].strip())
         if knaller:
             meta["knaller"] = knaller
+        # Adresse der Artikelseite: einmal vergeben, danach fest im Frontmatter
+        meta["slug"] = slug_waehlen(zerlegen(meta, body)[0], cluster.get("thema"), today, belegt)
+        belegt.add(meta["slug"])
         if draft.get("tag") and draft["tag"] != today:
             meta["entstanden"] = draft["tag"]
         # JSON-Werte sind gültiges YAML → keine kaputten Frontmatter durch ':' o. ä.

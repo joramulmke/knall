@@ -196,10 +196,15 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           ref: ${{ github.ref_name }}   # neuester Stand inkl. Pipeline-Commit, nicht github.sha
+      # Startseite + eine Seite je Artikel (_site/<slug>/) frisch aus
+      # published/ bauen — die Artikelseiten liegen bewusst nicht im Git
       - name: Build site
+        env:
+          KNALL_URL: ${{ vars.KNALL_URL || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}
         run: |
           mkdir -p _site
           cp -r site/* _site/
+          python3 scripts/build_site.py _site/index.html
           cp -r published _site/artikel
           cp stats.json _site/stats.json
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0

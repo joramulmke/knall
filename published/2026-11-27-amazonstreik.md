@@ -7,6 +7,7 @@ ki2_ampel: "gruen"
 ki3: "freigabe"
 ki3_nachbesserung: false
 ki_generiert: true
+slug: "verdi-ruft-zu-streik-an-deutschen"
 ---
 
 Verdi ruft zu Streik an deutschen Amazon‑Standorten auf

@@ -7,6 +7,7 @@ ki2_ampel: "gruen"
 ki3: "freigabe"
 ki3_nachbesserung: false
 ki_generiert: true
+slug: "messerattacke-auf-kurden-in-leipzig"
 ---
 
 Messerattacke auf Kurden in Leipzig – Täter erhalten 10 Jahre, Opfer bleibt dauerhaft verletzt  

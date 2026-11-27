@@ -7,6 +7,7 @@ ki2_ampel: "gruen"
 ki3: "freigabe"
 ki3_nachbesserung: false
 ki_generiert: true
+slug: "amazon-beschaeftigte-streiken-an-elf-standorten"
 ---
 
 Amazon‑Beschäftigte streiken an elf Standorten – Verdi fordert rechtsverbindliche Tarifverträge

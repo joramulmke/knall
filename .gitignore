@@ -13,3 +13,7 @@ sources/*
 .pytest_cache/
 # Privates Fehler-Archiv (nur verschlüsselt im Actions-Cache)
 archiv/
+# Artikelseiten (site/<slug>/) baut der Deploy-Schritt frisch aus published/ —
+# nicht committen, sonst ändert jeder Lauf tausende Dateien
+site/*/
+!site/fonts/
