@@ -2,6 +2,7 @@ name: Knall Daily Pipeline
 
 on:
   schedule:
+    # Nur Reserve (siehe Job "gate"); pünktlich startet der externe Cron.
     # Krumme Minute: Zur vollen Stunde lässt GitHub geplante Läufe bei Last oft ausfallen.
     - cron: '17 2,7,13,19 * * *'   # 4x täglich: 03:17/08:17/14:17/20:17 Uhr MEZ
   workflow_dispatch:
@@ -13,7 +14,39 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Hauptauslöser ist ein externer Cron per workflow_dispatch (pünktlich).
+  # Der GitHub-Zeitplan ist nur Reserve: Er läuft nur, wenn in den letzten
+  # 4 Stunden kein workflow_dispatch-Lauf gestartet wurde (Slots liegen 5–7 h
+  # auseinander). So kein Doppellauf, der das Free-Kontingent verbraucht.
+  gate:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    outputs:
+      go: ${{ steps.check.outputs.go }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [ "$EVENT" != "schedule" ]; then
+            echo "go=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          SINCE=$(date -u -d '-4 hours' +%FT%TZ)
+          N=$(gh api "repos/$REPO/actions/workflows/daily.yml/runs?event=workflow_dispatch&created=%3E%3D$SINCE&per_page=10" \
+               --jq '[.workflow_runs[] | select(.conclusion != "cancelled")] | length')
+          if [ "$N" -eq 0 ]; then
+            echo "Kein Lauf seit $SINCE — Reserve-Lauf startet"
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Slot schon abgedeckt ($N Lauf/Läufe seit $SINCE) — übersprungen"
+          fi
+
   pipeline:
+    needs: gate
+    if: needs.gate.outputs.go == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write   # nur zum Committen der Pipeline-Ausgabe
