@@ -626,3 +626,63 @@ def test_kaputtes_rss_wird_repariert():
            b'<title>T</title><item><title>A & B\x0b</title><link>https://x/1</link></item></channel></rss>')
     r = feedparser.parse(collect.repariere_xml(raw))
     assert not r.bozo and r.entries[0].title == "A & B"
+
+
+# --- Typo-Block: Knaller (KI1) und Schlagwort-Heuristik ---------------------
+from build_site import knaller_abtrennen, schlagwort, parse  # noqa: E402
+from router import satzweise_ersetzen, ist_knaller_stelle, ohne_knaller  # noqa: E402
+
+
+@pytest.mark.parametrize("titel,wort", [
+    ("Metallarbeiter erhalten 4,3 % Lohnplus – Arbeitgeber fordern Mehrarbeit", "4,3 %"),
+    ("Paketboten zahlen – 20‑Kilo‑Grenze fordert ver.di", "20 Kilo"),
+    ("Täter erhalten 10 Jahre Haft", "10 Jahre"),
+    ("Amazon‑Beschäftigte streiken an elf Standorten", "Amazon"),
+    ("Verdi ruft zu Streik an deutschen Amazon-Standorten auf", "Verdi"),
+    ("Die Bosse kassieren — Arbeiter zahlen", "Bosse"),
+    ("Mieter zahlen 1.200 Euro", "1.200 Euro"),
+])
+def test_schlagwort(titel, wort):
+    assert schlagwort(titel) == wort
+
+
+@pytest.mark.parametrize("zeile,wert", [
+    ("Knaller: Amazon streikt", "Amazon streikt"),
+    ("**Knaller:** „4,3 % mehr“", "4,3 % mehr"),
+    ("knaller: 20 Kilo.", "20 Kilo"),
+    ("Knaller: viel zu viele Wörter hier drin", ""),   # >3 Wörter → Heuristik
+    ("Knaller:", ""),
+])
+def test_knaller_abtrennen(zeile, wert):
+    rest, k = knaller_abtrennen(f"Titel\n{zeile}\n\nErster Absatz.")
+    assert k == wert
+    assert "naller" not in rest and rest.startswith("Titel") and "Erster Absatz." in rest
+
+
+def test_knaller_in_parse_und_render():
+    meta, body = parse("---\ndatum: \"2026-11-27\"\n---\n\nTitel mit Verdi\nKnaller: Amazon streikt\n\nText.\n")
+    assert meta["knaller"] == "Amazon streikt" and "Knaller" not in body
+    html = render(meta, body)
+    assert ">Amazon streikt</span>" in html and "Knaller" not in html
+
+
+def test_render_ohne_knaller_nimmt_heuristik():
+    html = render({}, "Verdi ruft zu Streik an deutschen Amazon-Standorten auf\n\nText.")
+    assert ">Verdi</span>" in html
+
+
+def test_knaller_korrektur_behaelt_praefix():
+    text = "Titel\nKnaller: Amazon kassiert\n\nErster Satz hier. Zweiter Satz da."
+    stellen = [{"nr": 1, "text": "Knaller: Amazon kassiert", "gruende": "P11"}]
+    neu = satzweise_ersetzen(text, stellen, [{"nr": 1, "neu": "Amazon streikt"}])
+    assert "Knaller: Amazon streikt" in neu
+    gestrichen = satzweise_ersetzen(text, stellen, [{"nr": 1, "neu": ""}])
+    assert "Knaller" not in gestrichen and gestrichen.startswith("Titel")
+
+
+def test_knaller_stelle_erkennen():
+    text = "Titel\nKnaller: Amazon streikt\n\nText."
+    assert ist_knaller_stelle({"text": "Knaller: Amazon streikt"})
+    assert ist_knaller_stelle({"text": "„Amazon streikt“"}, text)
+    assert not ist_knaller_stelle({"text": "Text."}, text)
+    assert ohne_knaller(text) == "Titel\n\nText."

@@ -67,6 +67,10 @@ def parse(md):
                 meta[k.strip()] = v.strip()
     # Quellen-/Hinweisblock aus dem Body entfernen — wird aus meta gerendert
     body = body.split("\nQuellen:\n", 1)[0].strip()
+    # Ältere/abweichende Dateien: Knaller-Zeile im Text → in die Metadaten
+    body, knaller = knaller_abtrennen(body)
+    if knaller and not meta.get("knaller"):
+        meta["knaller"] = knaller
     return meta, body
 
 
@@ -105,8 +109,61 @@ def datum_lang(iso):
     return f"{d.day}. {MONATE[d.month - 1]} {d.year}"
 
 
+# Satzanfänge, die als Schlagwort nichts taugen (am Titelanfang groß geschrieben)
+STARTWORTE = {
+    "der", "die", "das", "den", "dem", "des", "ein", "eine", "einer", "eines", "einen", "einem",
+    "im", "in", "am", "an", "auf", "nach", "vor", "trotz", "wegen", "bei", "mit", "für", "über",
+    "unter", "aus", "zum", "zur", "vom", "so", "wie", "wer", "was", "wo", "warum", "jetzt", "heute",
+    "neue", "neuer", "neues", "neuen", "mehr", "alle", "kein", "keine", "weil", "wenn", "und",
+    "oder", "doch", "aber", "statt", "gegen", "seit", "bis", "ohne", "um", "hunderte", "tausende",
+    "dutzende", "erst", "noch", "schon", "wieder",
+}
+EINHEITEN = (r"%|Prozent|Kilogramm|Kilo|Jahren|Jahre|Euro|Millionen|Milliarden|Stunden|Tagen|Tage|"
+             r"Wochen|Monaten|Monate|Cent|Grad|Kilometer|Meter")
+ZAHL_EINHEIT_RX = re.compile(
+    r"(?<![\w,.])(\d{1,3}(?:[.\u00a0\u202f ]\d{3})*(?:,\d+)?)[\s\u00a0\u202f\u2010\u2011-]*(" + EINHEITEN + r")(?![\wäöüß])")
+# "Knaller: …" — Schlagwort-Zeile von KI1 (zweite Zeile nach dem Titel),
+# läuft wie der Titel durch alle Prüfungen; hier wird sie abgetrennt.
+KNALLER_RX = re.compile(r"(?mi)^[ \t]*(?:\*\*|__)?knaller(?:\*\*|__)?[ \t]*:[ \t]*(.*?)[ \t]*(?:\n|$)")
+KNALLER_MAX_WORTE = 3
+KNALLER_MAX_ZEICHEN = 24
+
+
+def knaller_abtrennen(text):
+    """→ (text ohne Knaller-Zeile, knaller oder ""). Eine zu lange oder leere
+    Zeile wird trotzdem entfernt, der Wert dann verworfen (→ Heuristik)."""
+    text = str(text or "")
+    m = KNALLER_RX.search(text)
+    if not m:
+        return text, ""
+    wert = ohne_markdown(m.group(1)).strip().strip("*_\"'„“”‚‘’«»").strip().rstrip(".!").strip()
+    rest = re.sub(r"\n{3,}", "\n\n", text[: m.start()] + text[m.end():]).strip()
+    worte = [w for w in wert.split() if w not in ("%", "–", "-")]
+    if not worte or len(worte) > KNALLER_MAX_WORTE or len(wert) > KNALLER_MAX_ZEICHEN:
+        wert = ""
+    return rest, wert
+
+
 def schlagwort(titel):
-    """Längstes großgeschriebenes Wort der Schlagzeile für den Typo-Block."""
+    """Schlagwort für den Typo-Block, wenn KI1 keinen Knaller geliefert hat:
+    1. harte Zahl mit Einheit aus dem Titel ("4,3 %", "20 Kilo", "10 Jahre"),
+    2. sonst das Subjekt am Titelanfang; bei Bindestrich-Wörtern der erste
+       Teil ("Amazon-Beschäftigte" → "Amazon"),
+    3. sonst wie früher das längste großgeschriebene Wort."""
+    titel = str(titel or "")
+    m = ZAHL_EINHEIT_RX.search(titel)
+    if m:
+        zahl, einheit = m.group(1), m.group(2)
+        return f"{zahl}\u202f%" if einheit in ("%", "Prozent") else f"{zahl} {einheit}"
+    for tok in re.findall(r"[\wÄÖÜäöüß][\wÄÖÜäöüß.\u2010\u2011-]*", titel):
+        tok = tok.strip(".-")
+        if tok.lower() in STARTWORTE or tok in FUELLWORTE or not tok[:1].isupper():
+            continue
+        teile = [t for t in re.split(r"[-\u2010\u2011]", tok) if len(t) >= 3 and t[:1].isupper()]
+        if teile:
+            return teile[0]
+        if len(tok) >= 3:
+            return tok
     worte = re.findall(r"[A-ZÄÖÜ][\wÄÖÜäöüß-]{2,}", titel)
     worte = [w.strip("-") for w in worte if w not in FUELLWORTE]
     if not worte:
@@ -158,7 +215,7 @@ def render(meta, body, aufmacher=False, neu=False, id_=None):
         stoerer.append('<span class="stoerer knall">Knall!</span>')
     if neu:
         stoerer.append('<span class="stoerer neu">Neu</span>')
-    wort = schlagwort(titel)
+    wort = str(meta.get("knaller") or "").strip()[:KNALLER_MAX_ZEICHEN] or schlagwort(titel)
     rest = absaetze[1:] if absaetze else []
     volltext = "".join(f"<p>{e(a)}</p>" for a in rest)
     return (

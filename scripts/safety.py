@@ -100,7 +100,7 @@ def ki2_verdict(protokoll, article_text):
                 gruende.append(f"unbekannter Satzbefund {s.get('befund')!r}")
             # Ein 'ok' mit gelisteten Fakt-Verstoessen ist widersprüchlich
             if b == "ok" and any(
-                isinstance(v, dict) and str(v.get("pruefposten", "")).upper() in {f"P{i}" for i in range(1, 11)}
+                isinstance(v, dict) and str(v.get("pruefposten", "")).upper() in {f"P{i}" for i in range(1, 12)}
                 and _norm(v.get("erklaerung")) not in ("", "keine", "none")
                 for v in (s.get("verstoesse") or [])
             ):
