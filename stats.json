@@ -105,13 +105,13 @@
     "ki3_stopp": 0,
     "fehler": 0,
     "abgelaufen": 0,
-    "published": 6,
+    "published": 7,
     "gruende": [],
     "anfragen": {
       "anfragen": 0,
-      "groq_anfragen": 45,
+      "groq_anfragen": 55,
       "ok": 0,
-      "groq_ok": 45,
+      "groq_ok": 55,
       "r429": 0,
       "groq_r429": 0,
       "fehler": 0,
@@ -119,19 +119,19 @@
       "leer": 0,
       "groq_leer": 0,
       "modelle": {
-        "groq:openai/gpt-oss-20b": 3,
-        "groq:openai/gpt-oss-120b": 42
+        "groq:openai/gpt-oss-20b": 4,
+        "groq:openai/gpt-oss-120b": 51
       },
       "limit": 50,
       "groq_limit": 900,
       "groq_fenster": {
         "groq:openai/gpt-oss-20b": {
-          "rest": 1917,
-          "frei_ab": 1795812691.2
+          "rest": 1844,
+          "frei_ab": 1795814520.9
         },
         "groq:openai/gpt-oss-120b": {
-          "rest": 5240,
-          "frei_ab": 1795812915.1
+          "rest": 5437,
+          "frei_ab": 1795814701.3
         }
       }
     }
@@ -145,7 +145,7 @@
     "tage_ueber_80_prozent": 1,
     "r429_gesamt": 40,
     "anteil_429": 0.571,
-    "groq_schnitt_anfragen": 48.0,
+    "groq_schnitt_anfragen": 51.3,
     "groq_r429_gesamt": 25,
     "im_kontingent": false
   },
@@ -176,8 +176,8 @@
       "tage": 3
     },
     "bt_familie_senioren": {
-      "ok": 1,
-      "blockiert": 7,
+      "ok": 2,
+      "blockiert": 8,
       "tage": 3
     },
     "bt_gesundheit": {
