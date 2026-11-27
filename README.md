@@ -14,7 +14,9 @@ Automatisierte Boulevard-Pipeline: links, arbeitnehmerfreundlich, ökologisch, a
 8. **Maschinelle Sonderprüfungen** (Python, ohne KI): Zahlen-Diff gegen Quelle — exakt nach Wert, Ziffern und Zahlwörter inkl. Größenordnung („zwei“ = 2, „2,5 Mio.“ = 2.500.000), Entity-Check, N-Gramm-Plagiatscheck — der harte Boden unter allen LLMs. Abgesichert durch Tests (`tests/`), die vor jedem Lauf laufen.
 9. **Ampel-Router**: Rot → eine Korrekturrunde: KI1 streicht die beanstandeten Sätze oder schreibt sie enger an der Quelle (auch den Titel), danach volle KI2-Prüfung. Wieder Rot → rejected/ (mit Befund, fürs Statistiksystem). Gelb → max. 2 Korrekturrunden, dann Rot. Grün → weiter.
 10. **KI3 — Rechtsabnahme** (Prüf-Modell wie KI2): Persönlichkeitsrechte, üble Nachrede. Freigabe → published/.
-11. **Veröffentlichen**: `build_site.py` rendert published/ (HTML-escaped) in site/index.html, GitHub Pages veröffentlicht. Unter jedem Artikel stehen die Originalartikel mit Original-URL und Medium.
+11. **Veröffentlichen**: `build_site.py` rendert published/ (HTML-escaped) in site/index.html und baut je Artikel eine eigene Seite `<slug>/` (Adresse aus dem Titel, fest im Frontmatter `slug:`), GitHub Pages veröffentlicht. Unter jedem Artikel stehen die Originalartikel mit Original-URL und Medium.
+    - **Layout ändern**: Kopf, Fuß und Gerüst in `site/index.html`, Gestaltung in `site/style.css`, Aufbau der Artikelseite in `render_seite()` (build_site.py). Alle Artikelseiten werden bei jedem Lauf neu erzeugt — eine Änderung gilt sofort für alle. Vorschau lokal: `python scripts/build_site.py`, dann `site/index.html` öffnen.
+    - Die Artikelseiten liegen nicht im Git (`.gitignore`); der Deploy-Schritt baut sie frisch aus published/.
 
 ## Sicherheitsmodell (keine menschliche Freigabe → fail-closed)
 
@@ -50,7 +52,7 @@ Automatisierte Boulevard-Pipeline: links, arbeitnehmerfreundlich, ökologisch, a
 ├── archiv/                Privates Fehler-Archiv abgelehnter Artikel (nur verschlüsselt im Cache)
 ├── published/             Freigegebene Artikel (Markdown + Metadaten)
 ├── rejected/              Ablehnungs-Befunde OHNE Artikeltext (Gründe, Ampeln, Prüfposten)
-├── site/                  GitHub-Pages-Skeleton
+├── site/                  GitHub-Pages-Skeleton (index.html = Vorlage, style.css)
 └── stats.json             Ampel-Statistik (Rot-Gründe, Trends)
 ```
 

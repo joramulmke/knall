@@ -7,6 +7,7 @@ ki2_ampel: "gruen"
 ki3: "freigabe"
 ki3_nachbesserung: false
 ki_generiert: true
+slug: "paketboten-zahlen"
 ---
 
 Paketboten zahlen – 20‑Kilo‑Grenze fordert ver.di  

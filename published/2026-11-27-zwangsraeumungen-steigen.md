@@ -8,6 +8,7 @@ ki3: "freigabe"
 ki3_nachbesserung: false
 ki_generiert: true
 knaller: "sieben Prozent"
+slug: "34971-zwangsraeumungen-2024"
 ---
 
 34 971 Zwangsräumungen 2024

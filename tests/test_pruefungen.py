@@ -686,3 +686,80 @@ def test_knaller_stelle_erkennen():
     assert ist_knaller_stelle({"text": "„Amazon streikt“"}, text)
     assert not ist_knaller_stelle({"text": "Text."}, text)
     assert ohne_knaller(text) == "Titel\n\nText."
+
+
+# --- Artikelseiten: Adressen (Slugs) und eigene Seite -----------------------
+from build_site import (slugify, slug_waehlen, slugs_zuweisen, render_seite,  # noqa: E402
+                        artikelseite, lesezeit)
+
+
+@pytest.mark.parametrize("text,slug", [
+    ("Amazon‑Streik", "amazon-streik"),                       # U+2011
+    ("Paketboten zahlen – 20‑Kilo‑Grenze fordert ver.di", "paketboten-zahlen-20-kilo-grenze-fordert-verdi"),
+    ("Metallarbeiter erhalten 4,3 % Lohnplus", "metallarbeiter-erhalten-4-3-prozent-lohnplus"),
+    ("Mieter zahlen 1.200 Euro mehr", "mieter-zahlen-1200-euro-mehr"),
+    ("Größte Übernahme", "groesste-uebernahme"),
+])
+def test_slugify(text, slug):
+    assert slugify(text) == slug
+
+
+def test_slug_reihenfolge_titel_thema_zweiter_teil_tag_zahl():
+    titel = "Verdi ruft zum Streik – Amazon zahlt zu wenig"
+    belegt = set()
+    reihe = []
+    for _ in range(5):
+        s = slug_waehlen(titel, "Amazon‑Streik", "2026-11-27", belegt)
+        belegt.add(s)
+        reihe.append(s)
+    assert reihe == ["verdi-ruft-zum-streik", "amazon-streik", "amazon-zahlt-zu-wenig",
+                     "verdi-ruft-zum-streik-27-november", "verdi-ruft-zum-streik-2"]
+
+
+def test_slug_kurz_und_nie_reserviert():
+    s = slug_waehlen("Eins zwei drei vier fünf sechs sieben acht neun", None, "2026-11-27", set())
+    assert s == "eins-zwei-drei-vier-fuenf-sechs" and len(s) <= 50
+    assert slug_waehlen("Artikel", None, "2026-11-27", set()) not in {"artikel"}
+    assert slug_waehlen("Fonts", "Fonts", "2026-11-27", set()) == "fonts-27-november"
+
+
+def test_slugs_stabil_bei_neuen_artikeln():
+    alt = [("2026-11-26-a", {"datum": "2026-11-26"}, "Streik bei Amazon"),
+           ("2026-11-27-b", {"datum": "2026-11-27"}, "Streik bei Amazon")]
+    vorher = slugs_zuweisen(alt)
+    assert vorher == {"2026-11-26-a": "streik-bei-amazon", "2026-11-27-b": "streik-bei-amazon-27-november"}
+    neu = alt + [("2026-11-28-c", {"datum": "2026-11-28", "slug": "streik-bei-amazon-2"}, "Streik bei Amazon")]
+    nachher = slugs_zuweisen(neu)
+    assert {k: nachher[k] for k in vorher} == vorher
+    # Frontmatter-slug hat Vorrang, auch vor dem Altbestand
+    assert slugs_zuweisen([("x", {"slug": "fester-name"}, "Ganz anders")]) == {"x": "fester-name"}
+    # Kaputter/gefährlicher Frontmatter-slug wird ignoriert
+    assert slugs_zuweisen([("x", {"slug": "../boese"}, "Ganz anders")]) == {"x": "ganz-anders"}
+
+
+def test_artikelseite_eigene_vorschau_und_escaped():
+    vorlage = ("<html><head><title>Knall</title><!-- META --><!-- /META --></head><body>"
+               "<!-- RESSORTS --><!-- /RESSORTS --><!-- TICKER --><!-- /TICKER --><!-- DATUM --><!-- /DATUM -->"
+               "<main><!-- ARTIKEL --><!-- /ARTIKEL --></main></body></html>")
+    meta = {"datum": "2026-11-27", "ressort": "kohle",
+            "quellen": [{"titel": "<x>", "url": "javascript:alert(1)"}]}
+    body = "Titel <script>alert(1)</script>\n\nErster Absatz.\n\nZweiter Absatz."
+    page = artikelseite(vorlage, "https://knall.example/", "s", meta, body, "titel-script",
+                        [], "Freitag", "", "")
+    assert '<base href="../">' in page
+    assert '<link rel="canonical" href="https://knall.example/titel-script/">' in page
+    assert 'og:type" content="article"' in page and "NewsArticle" in page
+    assert "<script>alert" not in page and "javascript:" not in page
+    assert "<title>Titel &lt;script&gt;" in page
+    assert "Min. Lesezeit" in render_seite(meta, body)
+
+
+def test_kachel_verlinkt_artikelseite():
+    html = render({"datum": "2026-11-27"}, "Titel\n\nText.", link="titel/")
+    assert '<a href="titel/">Titel</a>' in html and 'class="weiter" href="titel/"' in html
+    assert "<details" not in html
+
+
+def test_lesezeit():
+    assert lesezeit(["wort " * 10]) == 1
+    assert lesezeit(["wort " * 600]) == 3

@@ -7,6 +7,7 @@ ki2_ampel: "gruen"
 ki3: "nachbesserung"
 ki3_nachbesserung: true
 ki_generiert: true
+slug: "textilarbeiter-in-bangladesch-protestieren"
 ---
 
 Textilarbeiter in Bangladesch protestieren – Lohn erhöht sich leicht

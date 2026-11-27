@@ -8,6 +8,7 @@ ki3: "freigabe"
 ki3_nachbesserung: false
 ki_generiert: true
 knaller: "Balkonkraftwerk"
+slug: "mieter-duerfen-balkonkraftwerke-anbringen"
 ---
 
 Mieter dürfen Balkonkraftwerke anbringen – Vermieter können nur in Ausnahmefällen verbieten

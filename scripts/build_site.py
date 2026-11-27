@@ -9,6 +9,16 @@ Die Vorlage site/index.html enthält Marker-Paare, deren Inhalt ersetzt wird:
   <!-- ARTIKEL -->…<!-- /ARTIKEL -->    Aufmacher + Raster (Pflicht)
   <!-- META -->…<!-- /META -->          Beschreibung, Vorschaukarte (og:), JSON-LD
 
+Jeder Artikel bekommt zusätzlich eine eigene Seite <slug>/index.html, gebaut
+aus DERSELBEN Vorlage (gleicher Kopf, gleiche Farben). Layout ändern =
+site/index.html bzw. site/style.css ändern; beim nächsten Lauf werden alle
+Artikelseiten neu erzeugt. Die Artikelseiten liegen nicht im Git (siehe
+.gitignore) — der Deploy-Schritt baut sie frisch aus published/*.md.
+
+Adresse (Slug): wird beim Veröffentlichen einmal vergeben und steht im
+Frontmatter (slug:), damit sie sich nie ändert. Reihenfolge bei Kollisionen:
+Titel (vor dem Gedankenstrich) → Thema → zweiter Titelteil → + Tag → + Zahl.
+
 Daneben entstehen feed.xml (Atom), sitemap.xml und robots.txt. Absolute
 Adressen kommen aus der Umgebungsvariable KNALL_URL (setzt der Workflow);
 ohne sie fehlen og:url/canonical und der Feed nutzt relative Links.
@@ -21,8 +31,11 @@ import html
 import json
 import os
 import pathlib
+import hashlib
 import re
+import shutil
 import sys
+import unicodedata
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 MAX_ARTIKEL = 30
@@ -48,6 +61,16 @@ MONATE = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli",
           "August", "September", "Oktober", "November", "Dezember"]
 WOCHENTAGE = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag",
               "Samstag", "Sonntag"]
+MEHR_KNALL = 3           # weitere Artikel unter dem Text
+WOERTER_PRO_MINUTE = 200
+SLUG_MAX_WORTE = 6
+SLUG_MAX_ZEICHEN = 50
+# Namen, die schon Dateien/Ordner der Seite sind (oder werden könnten)
+SLUG_RESERVIERT = {"artikel", "fonts", "feed", "sitemap", "robots", "index", "icon", "og",
+                   "stats", "style", "assets", "static", "rss", "api", "impressum"}
+SLUG_RX = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+GENERATOR_ARTIKEL = '<meta name="generator" content="knall-artikelseite">'
+UMLAUTE = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss", "Ä": "ae", "Ö": "oe", "Ü": "ue"})
 # Wörter, die als Riesen-Schlagwort im Typo-Block nichts taugen
 FUELLWORTE = {"Bundesgerichtshof", "Pressemitteilung", "Bundesregierung"}
 
@@ -193,6 +216,109 @@ def zerlegen(meta, body):
     return titel or str(meta.get("thema") or ""), absaetze, quellen
 
 
+# --- Adressen (Slugs) --------------------------------------------------------
+def slugify(text, fallback="artikel", max_worte=None, max_zeichen=60):
+    """Lesbare Adresse: Umlaute → ae/oe/ue, Bindestriche aller Art → "-",
+    "4,3 %" → "4-3-prozent", "ver.di" → "verdi", "1.200" → "1200"."""
+    t = str(text or "")
+    t = re.sub(r"(?<=\d)[.\u00a0\u202f ](?=\d{3}\b)", "", t)      # Tausenderpunkt
+    t = re.sub(r"(?<=[A-Za-zÄÖÜäöüß])\.(?=[A-Za-zäöüß])", "", t)     # ver.di
+    t = re.sub(r"\s*%", " prozent", t)
+    t = re.sub(r"[\u2010-\u2015\u2212/]", "-", t)
+    t = unicodedata.normalize("NFKD", t.translate(UMLAUTE))
+    t = t.encode("ascii", "ignore").decode().lower()
+    worte = [w for w in re.split(r"[^a-z0-9]+", t) if w]
+    if max_worte:
+        worte = worte[:max_worte]
+    s = ""
+    for w in worte:          # an Wortgrenze kürzen, nie mitten im Wort
+        kandidat = f"{s}-{w}" if s else w
+        if len(kandidat) > max_zeichen:
+            break
+        s = kandidat
+    if not s and worte:
+        s = worte[0][:max_zeichen]
+    return s or fallback
+
+
+def titel_teile(titel):
+    """"Vorne – hinten" → ("Vorne", "hinten") (Gedanken-/Halbgeviertstrich)."""
+    teile = re.split(r"\s+[–—]\s+|\s+-\s+", str(titel or ""), maxsplit=1)
+    return teile[0].strip(), (teile[1].strip() if len(teile) > 1 else "")
+
+
+def slug_kandidaten(titel, thema=None):
+    vorne, hinten = titel_teile(titel)
+    roh = [vorne or titel, thema, hinten]
+    out = []
+    for r in roh:
+        s = slugify(r, fallback="", max_worte=SLUG_MAX_WORTE, max_zeichen=SLUG_MAX_ZEICHEN)
+        if s and s not in out:
+            out.append(s)
+    return out
+
+
+def slug_waehlen(titel, thema, datum, belegt):
+    """Erster freier Kandidat: Titel → Thema → zweiter Titelteil → + Tag → + Zahl."""
+    def frei(s):
+        return s and s not in belegt and s not in SLUG_RESERVIERT
+    kandidaten = slug_kandidaten(titel, thema) or ["meldung"]
+    for s in kandidaten:
+        if frei(s):
+            return s
+    grund = kandidaten[0]
+    try:
+        d = dt.date.fromisoformat(str(datum)[:10])
+        tag = slugify(f"{d.day} {MONATE[d.month - 1]}")
+    except ValueError:
+        tag = ""
+    if tag and frei(f"{grund}-{tag}"):
+        return f"{grund}-{tag}"
+    n = 2
+    while not frei(f"{grund}-{n}"):
+        n += 1
+    return f"{grund}-{n}"
+
+
+def gueltiger_slug(s):
+    s = str(s or "").strip()
+    return s if SLUG_RX.match(s) and len(s) <= 80 and s not in SLUG_RESERVIERT else ""
+
+
+def slugs_zuweisen(artikel):
+    """artikel: [(stem, meta, titel)] → {stem: slug}. Slugs aus dem Frontmatter
+    zuerst (die sind fest); Artikel ohne slug (Altbestand) danach, ältester
+    zuerst — so bleibt die Zuordnung bei neuen Artikeln stabil."""
+    zuordnung, belegt = {}, set()
+    for stem, meta, _ in sorted(artikel, key=lambda a: a[0]):
+        s = gueltiger_slug(meta.get("slug"))
+        if s and s not in belegt:
+            zuordnung[stem] = s
+            belegt.add(s)
+    for stem, meta, titel in sorted(artikel, key=lambda a: a[0]):
+        if stem not in zuordnung:
+            s = slug_waehlen(titel, meta.get("thema"), meta.get("datum"), belegt)
+            zuordnung[stem] = s
+            belegt.add(s)
+    return zuordnung
+
+
+def alle_artikel(ordner=None):
+    """[(stem, meta, body)] aller veröffentlichten Artikel, neueste zuerst."""
+    ordner = ordner or ROOT / "published"
+    files = sorted(pathlib.Path(ordner).glob("*.md"), reverse=True)
+    return [(p.stem, *parse(p.read_text(encoding="utf-8"))) for p in files]
+
+
+def slugs_fuer(artikel):
+    return slugs_zuweisen([(stem, meta, zerlegen(meta, body)[0]) for stem, meta, body in artikel])
+
+
+def lesezeit(absaetze):
+    worte = sum(len(a.split()) for a in absaetze)
+    return max(1, round(worte / WOERTER_PRO_MINUTE))
+
+
 def teaser(absaetze):
     t = absaetze[0] if absaetze else ""
     if len(t) <= TEASER_ZEICHEN:
@@ -206,8 +332,15 @@ def anker(stem):
     return "a-" + (re.sub(r"[^a-z0-9-]", "", str(stem).lower()) or "artikel")
 
 
-def render(meta, body, aufmacher=False, neu=False, id_=None):
-    titel, absaetze, quellen = zerlegen(meta, body)
+def typo_block(meta, titel, slug):
+    wort = str(meta.get("knaller") or "").strip()[:KNALLER_MAX_ZEICHEN] or schlagwort(titel)
+    return (f'<div class="typo r-{e(slug)}" aria-hidden="true">'
+            f'<span style="--n:{max(len(wort), 5)}">{e(wort)}</span></div>\n')
+
+
+def render(meta, body, aufmacher=False, neu=False, id_=None, link=None):
+    """Kachel/Aufmacher auf der Startseite — führt zur Artikelseite (link)."""
+    titel, absaetze, _ = zerlegen(meta, body)
     slug = ressort_slug(meta.get("ressort"))
     klasse = "aufmacher" if aufmacher else "kachel"
     stoerer = []
@@ -215,26 +348,41 @@ def render(meta, body, aufmacher=False, neu=False, id_=None):
         stoerer.append('<span class="stoerer knall">Knall!</span>')
     if neu:
         stoerer.append('<span class="stoerer neu">Neu</span>')
-    wort = str(meta.get("knaller") or "").strip()[:KNALLER_MAX_ZEICHEN] or schlagwort(titel)
-    rest = absaetze[1:] if absaetze else []
-    volltext = "".join(f"<p>{e(a)}</p>" for a in rest)
+    href = e(link) if link else ""
+    kopf = f'<a href="{href}">{e(titel)}</a>' if link else e(titel)
     return (
         f'<article class="{klasse}" data-ressort="{e(slug)}"'
         + (f' id="{e(id_)}"' if id_ else "") + '>\n'
-        f'<div class="typo r-{e(slug)}" aria-hidden="true"><span style="--n:{max(len(wort), 5)}">{e(wort)}</span></div>\n'
-        f'<div class="inhalt">\n'
+        + typo_block(meta, titel, slug)
+        + '<div class="inhalt">\n'
         f'<div class="dach">{"".join(stoerer)}<span class="ressort">{e(ressort_name(meta.get("ressort")))}</span></div>\n'
-        f"<h2>{e(titel)}</h2>\n"
+        f"<h2>{kopf}</h2>\n"
         f'<p class="teaser">{e(absaetze[0] if aufmacher and absaetze else teaser(absaetze))}</p>\n'
-        f'<details><summary>Weiterlesen</summary>\n'
-        # Kachel: Teaser ist evtl. gekürzt → beim Aufklappen voller erster
-        # Absatz (Teaser wird dann per CSS ausgeblendet)
-        + (f'<p class="lead">{e(absaetze[0])}</p>' if not aufmacher and absaetze else "")
+        + (f'<a class="weiter" href="{href}" aria-label="Weiterlesen: {e(titel)}">Weiterlesen</a>\n' if link else "")
+        + f'<div class="meta">{e(datum_lang(meta.get("datum", "")))} · KI-generiert, maschinell geprüft</div>\n'
+        "</div>\n</article>"
+    )
+
+
+def render_seite(meta, body):
+    """Der eine Artikel einer Artikelseite, voll ausgeklappt."""
+    titel, absaetze, quellen = zerlegen(meta, body)
+    slug = ressort_slug(meta.get("ressort"))
+    lead = f'<p class="lead">{e(absaetze[0])}</p>\n' if absaetze else ""
+    volltext = "".join(f"<p>{e(a)}</p>" for a in absaetze[1:])
+    return (
+        f'<article class="seite" data-ressort="{e(slug)}">\n'
+        + typo_block(meta, titel, slug)
+        + '<div class="inhalt">\n'
+        '<a class="zurueck" href="./">← Zur Übersicht</a>\n'
+        f'<div class="dach"><span class="ressort">{e(ressort_name(meta.get("ressort")))}</span></div>\n'
+        f"<h1>{e(titel)}</h1>\n"
+        f'<div class="zeile"><span>{e(datum_lang(meta.get("datum", "")))} · {lesezeit(absaetze)} Min. Lesezeit · KI-generiert, maschinell geprüft</span>'
+        '<button type="button" class="teilen" data-teilen hidden>Teilen</button></div>\n'
+        + lead
         + f'<div class="body">{volltext}</div>\n'
         + (f'<div class="quellen-titel">Quellen</div><ul class="quellen">{"".join(quellen)}</ul>\n' if quellen else "")
-        + "</details>\n"
-        f'<div class="meta">{e(datum_lang(meta.get("datum", "")))} · KI-generiert, maschinell geprüft</div>\n'
-        "</div>\n</article>"
+        + "</div>\n</article>"
     )
 
 
@@ -254,18 +402,26 @@ def site_url():
     return u.rstrip("/") + "/" if u else ""
 
 
-def kopf_meta(base, beschreibung, artikel_ld):
-    """Meta-Tags für Suchmaschinen und Vorschaukarten (Mastodon, Messenger)."""
-    t = [
+def kopf_meta(base, beschreibung, artikel_ld, seite=None):
+    """Meta-Tags für Suchmaschinen und Vorschaukarten (Mastodon, Messenger).
+    seite = {"titel", "url", "datum", "ressort"} für eine Artikelseite."""
+    titel = seite["titel"] if seite else SITE_TITEL
+    url = seite["url"] if seite else base
+    t = []
+    if seite:
+        # Artikelseiten liegen in <slug>/ — alle relativen Adressen der
+        # Vorlage (style.css, icon.png, Links) gelten eine Ebene höher
+        t += ['<base href="../">', GENERATOR_ARTIKEL]
+    t += [
         f'<meta name="description" content="{e(beschreibung)}">',
         '<meta name="theme-color" content="#6d4aff">',
         '<link rel="icon" href="icon.png" type="image/png">',
         '<link rel="apple-touch-icon" href="icon.png">',
         f'<link rel="alternate" type="application/atom+xml" title="{e(SITE_TITEL)}" href="{e(base)}feed.xml">',
-        '<meta property="og:type" content="website">',
+        f'<meta property="og:type" content="{"article" if seite else "website"}">',
         '<meta property="og:locale" content="de_DE">',
         '<meta property="og:site_name" content="Knall">',
-        f'<meta property="og:title" content="{e(SITE_TITEL)}">',
+        f'<meta property="og:title" content="{e(titel)}">',
         f'<meta property="og:description" content="{e(beschreibung)}">',
         f'<meta property="og:image" content="{e(base)}og.png">',
         '<meta property="og:image:width" content="1200">',
@@ -273,18 +429,31 @@ def kopf_meta(base, beschreibung, artikel_ld):
         '<meta property="og:image:alt" content="Schriftzug KNALL — Das linke Boulevard">',
         '<meta name="twitter:card" content="summary_large_image">',
     ]
+    if seite:
+        t += [f'<meta property="article:published_time" content="{e(seite["zeit"])}">',
+              f'<meta property="article:section" content="{e(seite["ressort"])}">']
     if base:
-        t += [f'<link rel="canonical" href="{e(base)}">',
-              f'<meta property="og:url" content="{e(base)}">']
-    ld = {"@context": "https://schema.org", "@type": "WebSite", "name": "Knall",
-          "alternateName": SITE_TITEL, "description": SITE_BESCHREIBUNG, "inLanguage": "de"}
-    if base:
-        ld["url"] = base
-    if artikel_ld:
-        ld = [ld, {"@context": "https://schema.org", "@type": "ItemList",
-                   "itemListElement": [dict(a, position=i + 1) for i, a in enumerate(artikel_ld)]}]
-    # "</" im JSON escapen, damit kein Text das <script> schließen kann
-    js = json.dumps(ld, ensure_ascii=False).replace("</", "<\\/")
+        t += [f'<link rel="canonical" href="{e(url)}">',
+              f'<meta property="og:url" content="{e(url)}">']
+    if seite:
+        ld = {"@context": "https://schema.org", "@type": "NewsArticle", "headline": titel,
+              "description": beschreibung, "datePublished": seite["zeit"], "inLanguage": "de",
+              "articleSection": seite["ressort"], "isAccessibleForFree": True,
+              "publisher": {"@type": "Organization", "name": "Knall"}}
+        if base:
+            ld["url"] = url
+            ld["image"] = f"{base}og.png"
+            ld["mainEntityOfPage"] = url
+    else:
+        ld = {"@context": "https://schema.org", "@type": "WebSite", "name": "Knall",
+              "alternateName": SITE_TITEL, "description": SITE_BESCHREIBUNG, "inLanguage": "de"}
+        if base:
+            ld["url"] = base
+        if artikel_ld:
+            ld = [ld, {"@context": "https://schema.org", "@type": "ItemList",
+                       "itemListElement": [dict(a, position=i + 1) for i, a in enumerate(artikel_ld)]}]
+    # "<" im JSON escapen, damit kein Text das <script> schließen/öffnen kann
+    js = json.dumps(ld, ensure_ascii=False).replace("<", "\\u003c")
     t.append(f'<script type="application/ld+json">{js}</script>')
     return "\n" + "\n".join(t) + "\n"
 
@@ -311,12 +480,14 @@ def atom_feed(base, eintraege, jetzt):
         inhalt = "".join(f"<p>{e(p)}</p>" for p in a["absaetze"])
         if a["quellen"]:
             inhalt += "<p>Quellen:</p><ul>" + "".join(a["quellen"]) + "</ul>"
-        link = f"{base}#{a['id']}"
+        link = f"{base}{a['slug']}/"
+        # id bleibt die alte Sprungmarke: sonst zeigen Feedreader alles doppelt
+        alt_id = f"{base}#{a['id']}"
         teile += [
             "<entry>",
             f"<title>{x(a['titel'])}</title>",
             f'<link rel="alternate" type="text/html" href="{e(link)}"/>',
-            f"<id>{x(link if base else 'urn:knall:' + a['id'])}</id>",
+            f"<id>{x(alt_id if base else 'urn:knall:' + a['id'])}</id>",
             f"<published>{a['zeit']}</published>",
             f"<updated>{a['zeit']}</updated>",
             f'<category term="{e(a["ressort"])}"/>',
@@ -336,30 +507,80 @@ def zeitstempel(iso):
     return f"{d.isoformat()}T06:00:00Z"
 
 
+def ressort_knoepfe(ressorts, als_links=False):
+    paare = sorted(ressorts.items(), key=lambda x: x[1])
+    if als_links:   # Artikelseite: zurück zur Startseite, gefiltert
+        return ('<a href="./">Alles</a>'
+                + "".join(f'<a href="./#{e(s)}">{e(n)}</a>' for s, n in paare))
+    return ('<button type="button" class="aktiv" data-filter="">Alles</button>'
+            + "".join(f'<button type="button" data-filter="{e(s)}">{e(n)}</button>' for s, n in paare))
+
+
+def css_version(page, ordner):
+    """style.css?v=<hash>: Browser laden die Datei nach Änderungen neu."""
+    css = ordner / "style.css"
+    if not css.exists():
+        return page
+    v = hashlib.sha256(css.read_bytes()).hexdigest()[:10]
+    return re.sub(r'href="style\.css[^"]*"', f'href="style.css?v={v}"', page)
+
+
+def artikelseite(vorlage, base, stem, meta, body, slug, mehr, heute_text, ticker, knoepfe):
+    titel, absaetze, _ = zerlegen(meta, body)
+    page = re.sub(r"<title>.*?</title>", f"<title>{e(titel)} — Knall</title>", vorlage, count=1, flags=re.S)
+    inner = render_seite(meta, body)
+    if mehr:
+        inner += ('\n<h2 class="mehr-titel">Mehr Knall</h2>\n<div class="raster">\n'
+                  + "\n".join(mehr) + "\n</div>")
+    page = ersetze(page, "ARTIKEL", f"\n{inner}\n", pflicht=True)
+    page = ersetze(page, "TICKER", ticker)
+    page = ersetze(page, "RESSORTS", knoepfe)
+    page = ersetze(page, "DATUM", heute_text)
+    seite = {"titel": titel, "url": f"{base}{slug}/", "zeit": zeitstempel(meta.get("datum")),
+             "ressort": ressort_name(meta.get("ressort"))}
+    return ersetze(page, "META", kopf_meta(base, teaser(absaetze) or SITE_BESCHREIBUNG, [], seite))
+
+
+def alte_artikelseiten_entfernen(ziel, behalten):
+    """Nur selbst erzeugte Artikelordner löschen (am Generator-Tag erkennbar)."""
+    for d in ziel.iterdir():
+        f = d / "index.html"
+        if d.is_dir() and d.name not in behalten and f.is_file():
+            try:
+                if GENERATOR_ARTIKEL in f.read_text(encoding="utf-8")[:4000]:
+                    shutil.rmtree(d)
+            except OSError:
+                pass
+
+
 def main():
     target = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "site" / "index.html"
-    page = (ROOT / "site" / "index.html").read_text(encoding="utf-8")
-    files = sorted((ROOT / "published").glob("*.md"), reverse=True)[:MAX_ARTIKEL]
-    artikel = [(p.stem, *parse(p.read_text(encoding="utf-8"))) for p in files]
+    vorlage = (ROOT / "site" / "index.html").read_text(encoding="utf-8")
+    alle = alle_artikel()
+    slugs = slugs_fuer(alle)
+    artikel = alle[:MAX_ARTIKEL]
     heute = dt.date.today()
     base = site_url()
+    ziel = target.parent
 
     blocks, ticker, ressorts, feed, artikel_ld = [], [], {}, [], []
     for i, (stem, meta, body) in enumerate(artikel):
         neu = str(meta.get("datum", ""))[:10] == heute.isoformat()
         id_ = anker(stem)
-        blocks.append(render(meta, body, aufmacher=(i == 0), neu=neu, id_=id_))
+        slug = slugs[stem]
+        blocks.append(render(meta, body, aufmacher=(i == 0), neu=neu, id_=id_, link=f"{slug}/"))
         titel, absaetze, quellen = zerlegen(meta, body)
         if len(feed) < MAX_FEED:
-            feed.append({"id": id_, "titel": titel, "absaetze": absaetze, "quellen": quellen,
+            feed.append({"id": id_, "slug": slug, "titel": titel, "absaetze": absaetze, "quellen": quellen,
                          "teaser": teaser(absaetze), "zeit": zeitstempel(meta.get("datum")),
                          "ressort": ressort_name(meta.get("ressort"))})
             ld = {"@type": "ListItem", "name": titel}
             if base:
-                ld["url"] = f"{base}#{id_}"
+                ld["url"] = f"{base}{slug}/"
             artikel_ld.append(ld)
         if len(ticker) < MAX_TICKER:
             ticker.append(f"<span>{e(titel)}</span>")
+    for _, meta, _ in alle:
         ressorts.setdefault(ressort_slug(meta.get("ressort")), ressort_name(meta.get("ressort")))
 
     if blocks:
@@ -367,33 +588,51 @@ def main():
     else:
         inner = ('<p class="leer">Noch keine Artikel. Die Pipeline läuft täglich '
                  'um 06:00 — morgen knallt’s.</p>')
-    page = ersetze(page, "ARTIKEL", f"\n{inner}\n", pflicht=True)
+    page = ersetze(vorlage, "ARTIKEL", f"\n{inner}\n", pflicht=True)
 
     tick = "".join(ticker) or "<span>Knall — das linke Boulevard</span>"
     # Laufband doppelt, damit die Animation nahtlos durchläuft
-    page = ersetze(page, "TICKER", f'<div class="lauf">{tick}{tick}</div>')
-    knoepfe = ['<button type="button" class="aktiv" data-filter="">Alles</button>']
-    knoepfe += [f'<button type="button" data-filter="{e(s)}">{e(n)}</button>'
-                for s, n in sorted(ressorts.items(), key=lambda x: x[1])]
-    page = ersetze(page, "RESSORTS", "".join(knoepfe))
-    page = ersetze(page, "DATUM", e(f"{WOCHENTAGE[heute.weekday()]}, {datum_lang(heute.isoformat())}"))
-    beschreibung = SITE_BESCHREIBUNG
-    page = ersetze(page, "META", kopf_meta(base, beschreibung, artikel_ld))
+    ticker_html = f'<div class="lauf">{tick}{tick}</div>'
+    heute_text = e(f"{WOCHENTAGE[heute.weekday()]}, {datum_lang(heute.isoformat())}")
+    page = ersetze(page, "TICKER", ticker_html)
+    page = ersetze(page, "RESSORTS", ressort_knoepfe(ressorts))
+    page = ersetze(page, "DATUM", heute_text)
+    page = ersetze(page, "META", kopf_meta(base, SITE_BESCHREIBUNG, artikel_ld))
+    ziel.mkdir(parents=True, exist_ok=True)
+    target.write_text(css_version(page, ziel), encoding="utf-8")
 
-    target.write_text(page, encoding="utf-8")
-    ziel = target.parent
+    # Eine Seite je Artikel — für ALLE veröffentlichten, damit Links nie sterben
+    vorlage_seite = css_version(vorlage, ziel)
+    knoepfe_links = ressort_knoepfe(ressorts, als_links=True)
+    neueste = [(stem, meta, body) for stem, meta, body in alle[:MEHR_KNALL + 1]]
+    alte_artikelseiten_entfernen(ziel, set(slugs.values()))
+    for stem, meta, body in alle:
+        slug = slugs[stem]
+        mehr = [render(m, b, id_=None, link=f"{slugs[s]}/")
+                for s, m, b in neueste if s != stem][:MEHR_KNALL]
+        html_seite = artikelseite(vorlage_seite, base, stem, meta, body, slug, mehr,
+                                  heute_text, ticker_html, knoepfe_links)
+        (ziel / slug).mkdir(exist_ok=True)
+        (ziel / slug / "index.html").write_text(html_seite, encoding="utf-8")
+
     jetzt = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     (ziel / "feed.xml").write_text(atom_feed(base, feed, jetzt), encoding="utf-8")
     robots = "User-agent: *\nAllow: /\n"
     if base:
         robots += f"Sitemap: {base}sitemap.xml\n"
+        urls = [f"<url><loc>{e(base)}</loc><lastmod>{heute.isoformat()}</lastmod>"
+                "<changefreq>hourly</changefreq></url>"]
+        for stem, meta, _ in alle:
+            datum = str(meta.get("datum", ""))[:10]
+            urls.append(f"<url><loc>{e(base)}{e(slugs[stem])}/</loc>"
+                        + (f"<lastmod>{e(datum)}</lastmod>" if datum else "") + "</url>")
         (ziel / "sitemap.xml").write_text(
             '<?xml version="1.0" encoding="utf-8"?>\n'
             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-            f"<url><loc>{e(base)}</loc><lastmod>{heute.isoformat()}</lastmod>"
-            "<changefreq>hourly</changefreq></url>\n</urlset>\n", encoding="utf-8")
+            + "\n".join(urls) + "\n</urlset>\n", encoding="utf-8")
     (ziel / "robots.txt").write_text(robots, encoding="utf-8")
-    print(f"Seite gebaut: {len(blocks)} Artikel, Feed {len(feed)} Einträge → {target}")
+    print(f"Seite gebaut: {len(blocks)} Artikel auf der Startseite, {len(alle)} Artikelseiten, "
+          f"Feed {len(feed)} Einträge → {ziel}")
 
 
 if __name__ == "__main__":
