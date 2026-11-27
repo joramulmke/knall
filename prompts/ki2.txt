@@ -12,6 +12,7 @@ P7 ZUSATZ: Jedes Detail im Satz ist aus den Quellen ableitbar. Auch Kleinigkeite
 P8 PLAGIAT: Keine 20 oder mehr aufeinanderfolgende Wörter stimmen mit der Quelle überein.
 P9 RECHT: Der Satz unterstellt keine Straftat, Lüge oder Absicht, die in den Quellen nicht belegt ist (Persönlichkeitsrechtsrisiko).
 P10 TITEL: Der Titel ist vom Text gedeckt und besteht P1–P9 besonders streng. Verspricht der Titel mehr Schuld oder Schaden als der Text beweist → Rot.
+P11 KNALLER: Die Zeile „Knaller: …“ unter dem Titel ist das Schlagwort fürs Titelbild (1 bis 3 Wörter). Sie ist ein eigener Eintrag im Protokoll (satz_nr 1, „text“ = die ganze Zeile mit „Knaller:“) und wird so streng wie der Titel geprüft: P1–P9, jede Zahl und jeder Name wörtlich gedeckt, nicht mehr Schuld oder Schaden als der Text belegt → sonst Rot. Fehlt die Zeile, ist das kein Verstoß.
 
 BEFUND-TYPEN pro Satz:
 - „ok“ — alle Prüfposten bestanden.

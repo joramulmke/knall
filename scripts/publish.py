@@ -36,6 +36,7 @@ def main():
     import sys
     sys.path.insert(0, str(ROOT / "scripts"))
     from common import run_day, work_days
+    from build_site import knaller_abtrennen
     today = run_day()  # Veröffentlichungsdatum = heute, auch für Nachzügler von gestern
     (ROOT / "published").mkdir(exist_ok=True)
     count = 0
@@ -67,6 +68,10 @@ def main():
             "ki3_nachbesserung": bool(draft.get("ki3_nachbesserung")),
             "ki_generiert": True,
         }
+        # Knaller-Zeile (geprüft wie der Titel) aus dem Text in die Metadaten
+        body, knaller = knaller_abtrennen(draft["text"].strip())
+        if knaller:
+            meta["knaller"] = knaller
         if draft.get("tag") and draft["tag"] != today:
             meta["entstanden"] = draft["tag"]
         # JSON-Werte sind gültiges YAML → keine kaputten Frontmatter durch ':' o. ä.
@@ -74,7 +79,6 @@ def main():
         quellen_md = "\n".join(
             f"- [{q['titel'] or q['url']}]({q['url']})" + (f" — {q['medium']}" if q.get("medium") else "")
             for q in quellen)
-        body = draft["text"].strip()
         out.write_text(
             f"---\n{frontmatter}\n---\n\n{body}\n\n"
             f"Quellen:\n{quellen_md}\n\n"

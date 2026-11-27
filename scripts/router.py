@@ -403,6 +403,30 @@ def _aufraeumen(text):
     return "\n".join(z.strip() if not z.strip() else z.rstrip() for z in text.split("\n")).strip()
 
 
+KNALLER_ZEILE_RX = re.compile(r"^[ \t]*(?:\*\*|__)?knaller(?:\*\*|__)?[ \t]*:", re.I)
+
+
+def ist_knaller_stelle(stelle, text=None):
+    """Beanstandete Stelle = die Zeile "Knaller: …" (Schlagwort fürs Titelbild).
+    KI2 zitiert sie mal mit, mal ohne "Knaller:" — mit `text` wird auch der
+    bloße Wert erkannt."""
+    zitat = str((stelle or {}).get("text") or "").strip()
+    if KNALLER_ZEILE_RX.match(zitat):
+        return True
+    if text and zitat:
+        from build_site import knaller_abtrennen
+        _, wert = knaller_abtrennen(text)
+        kern = zitat.strip("\"'„“”‚‘’«» .!")
+        return bool(wert) and kern == wert
+    return False
+
+
+def ohne_knaller(text):
+    """Text ohne die Knaller-Zeile (Seite fällt dann auf die Heuristik zurück)."""
+    zeilen = [z for z in str(text or "").split("\n") if not KNALLER_ZEILE_RX.match(z)]
+    return _aufraeumen("\n".join(zeilen))
+
+
 def satzweise_ersetzen(text, stellen, ersetzungen):
     """Ersetzt NUR die beanstandeten Stellen. Titel (erste Zeile) und alle
     übrigen Sätze bleiben technisch unverändert. Rückgabe: neuer Text oder
@@ -429,6 +453,9 @@ def satzweise_ersetzen(text, stellen, ersetzungen):
             continue
         if not s["text"] or "\n" in neu:
             return None
+        if KNALLER_ZEILE_RX.match(s["text"]) and neu and not KNALLER_ZEILE_RX.match(neu):
+            # Ersatz ohne "Knaller:" würde zu einem Absatz im Text
+            neu = "Knaller: " + neu
         ergebnis = _ersetze_tolerant(rumpf, s["text"], neu)
         if ergebnis is None:
             return None
@@ -535,8 +562,20 @@ def evaluate_stage():
                 if ampel == "rot":
                     stellen = rot_stellen(protokoll, gruende)
                     if stellen and rot_rounds >= MAX_ROT_ROUNDS:
-                        # Runden aufgebraucht: Ist nur noch der Titel rot, kommt
-                        # einmalig das KI0-Thema als nüchterner Ersatztitel.
+                        # Runden aufgebraucht: Ist (neben dem Titel) noch der
+                        # Knaller rot, fliegt die Knaller-Zeile einmalig raus —
+                        # das Titelbild nimmt dann das Schlagwort aus dem Titel.
+                        knaller_rot = [st for st in stellen if ist_knaller_stelle(st, draft["text"])]
+                        if knaller_rot and not draft.get("knaller_gestrichen") and all(
+                                st["nr"] == 0 or ist_knaller_stelle(st, draft["text"]) for st in stellen):
+                            print(f"  {name}: Knaller weiter rot — Knaller-Zeile gestrichen")
+                            draft["text"] = ohne_knaller(draft["text"])
+                            draft["knaller_gestrichen"] = True
+                            verlauf(draft, "knaller-gestrichen", text=draft["text"])
+                            write_json(dpath, draft)
+                            continue
+                        # Ist nur noch der Titel rot, kommt einmalig das
+                        # KI0-Thema als nüchterner Ersatztitel.
                         ersatz = ersatztitel(draft, stellen)
                         if ersatz:
                             print(f"  {name}: nur Titel rot — Ersatztitel aus KI0-Thema: {ersatz}")

@@ -9,6 +9,8 @@ R4 MINDERJÄHRIGE/GESCHÜTZTE PERSONEN: Sind reale, identifizierbare Privatperso
 R5 MARKEN/PROMIS: Werden Marken oder Promis nur zu Skandal-Zwecken ohne Bezug zum Fakt genannt?
 R6 VERFÜHRUNG ZUM HASS: Kann ein normal lesender, verstehender Leser den Text als Aufruf zu Gewalt oder Hass gegen eine Gruppe lesen?
 
+Die Zeile „Knaller: …“ unter dem Titel steht groß auf dem Titelbild. Prüfe sie wie den Titel mit.
+
 WAAGE-REGEL:
 - Der Text ist Polemik gegen Mächtige — das ist erlaubt und gewollt. Polemik gegen Minderheiten, Geflüchtete, Arme, Kranke: unzulässig, „stopp“.
 - Kritik an amtlichem Handeln ist frei. Kritik an Amtsträgern als Personen nur mit Fakten-Deckung aus den Quellen.
