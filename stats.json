@@ -10,8 +10,8 @@
       "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
-      "KI2 rot/gelb-erschoepft",
-      "KI3-Nachbesserung nicht anwendbar (1 Stelle(n) nicht gefunden)"
+      "KI3-Nachbesserung nicht anwendbar (1 Stelle(n) nicht gefunden)",
+      "KI2 rot/gelb-erschoepft"
     ],
     "warnung_rot_quote": true,
     "anfragen": {
@@ -56,9 +56,9 @@
     "gruende": [
       "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
+      "KI2 rot/gelb-erschoepft",
+      "KI2 rot/gelb-erschoepft",
       "Sonderpruefung nicht bestanden",
-      "KI2 rot/gelb-erschoepft",
-      "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft"
@@ -99,16 +99,53 @@
       }
     }
   },
+  "2026-11-27": {
+    "rot": 0,
+    "gelb": 0,
+    "ki3_stopp": 0,
+    "fehler": 0,
+    "abgelaufen": 0,
+    "published": 1,
+    "gruende": [],
+    "anfragen": {
+      "anfragen": 0,
+      "groq_anfragen": 8,
+      "ok": 0,
+      "groq_ok": 8,
+      "r429": 0,
+      "groq_r429": 0,
+      "fehler": 0,
+      "groq_fehler": 0,
+      "leer": 0,
+      "groq_leer": 0,
+      "modelle": {
+        "groq:openai/gpt-oss-20b": 1,
+        "groq:openai/gpt-oss-120b": 7
+      },
+      "limit": 50,
+      "groq_limit": 900,
+      "groq_fenster": {
+        "groq:openai/gpt-oss-20b": {
+          "rest": 2667,
+          "frei_ab": 1795745862.2
+        },
+        "groq:openai/gpt-oss-120b": {
+          "rest": 3944,
+          "frei_ab": 1795746053.6
+        }
+      }
+    }
+  },
   "_kontingent": {
-    "tage": 2,
+    "tage": 3,
     "limit": 50,
-    "schnitt_anfragen": 35.0,
+    "schnitt_anfragen": 23.3,
     "max_anfragen": 50,
     "tage_am_limit": 1,
     "tage_ueber_80_prozent": 1,
     "r429_gesamt": 40,
     "anteil_429": 0.571,
-    "groq_schnitt_anfragen": 49.5,
+    "groq_schnitt_anfragen": 35.7,
     "groq_r429_gesamt": 25,
     "im_kontingent": false
   },
@@ -144,9 +181,9 @@
       "tage": 2
     },
     "bt_gesundheit": {
-      "ok": 6,
+      "ok": 7,
       "blockiert": 1,
-      "tage": 2
+      "tage": 3
     },
     "bt_haushalt": {
       "ok": 2,
@@ -166,7 +203,7 @@
     "bt_petitionen": {
       "ok": 0,
       "blockiert": 0,
-      "tage": 2
+      "tage": 3
     },
     "bt_recht_verbraucher": {
       "ok": 0,
@@ -181,7 +218,7 @@
     "bt_wirtschaft_energie": {
       "ok": 4,
       "blockiert": 2,
-      "tage": 2
+      "tage": 3
     },
     "bt_wohnen": {
       "ok": 0,
@@ -199,9 +236,9 @@
       "tage": 2
     },
     "deutschlandfunk": {
-      "ok": 8,
-      "blockiert": 3,
-      "tage": 2
+      "ok": 9,
+      "blockiert": 5,
+      "tage": 3
     },
     "dgb_pm": {
       "ok": 1,
@@ -215,8 +252,8 @@
     },
     "freie_presse": {
       "ok": 2,
-      "blockiert": 2,
-      "tage": 1
+      "blockiert": 4,
+      "tage": 2
     },
     "gruene_bundestag": {
       "ok": 1,
@@ -225,33 +262,33 @@
     },
     "junge_welt": {
       "ok": 4,
-      "blockiert": 2,
-      "tage": 2
+      "blockiert": 4,
+      "tage": 3
     },
     "l_iz": {
-      "ok": 10,
+      "ok": 15,
       "blockiert": 0,
-      "tage": 2
+      "tage": 3
     },
     "lr_online": {
-      "ok": 3,
+      "ok": 5,
       "blockiert": 3,
-      "tage": 2
+      "tage": 3
     },
     "mdr_sachsen": {
-      "ok": 3,
-      "blockiert": 2,
-      "tage": 2
+      "ok": 5,
+      "blockiert": 3,
+      "tage": 3
     },
     "mdr_sachsen_anhalt": {
-      "ok": 2,
-      "blockiert": 0,
-      "tage": 1
+      "ok": 7,
+      "blockiert": 1,
+      "tage": 2
     },
     "mdr_thueringen": {
-      "ok": 4,
+      "ok": 5,
       "blockiert": 4,
-      "tage": 2
+      "tage": 3
     },
     "moz": {
       "ok": 1,
@@ -264,14 +301,14 @@
       "tage": 1
     },
     "nd_gesamt": {
-      "ok": 9,
+      "ok": 11,
       "blockiert": 0,
-      "tage": 2
+      "tage": 3
     },
     "ndr_mv": {
-      "ok": 7,
-      "blockiert": 0,
-      "tage": 2
+      "ok": 12,
+      "blockiert": 1,
+      "tage": 3
     },
     "netzpolitik": {
       "ok": 6,
@@ -279,9 +316,9 @@
       "tage": 1
     },
     "nordkurier": {
-      "ok": 12,
+      "ok": 18,
       "blockiert": 0,
-      "tage": 2
+      "tage": 3
     },
     "ossl": {
       "ok": 0,
@@ -289,9 +326,9 @@
       "tage": 1
     },
     "rbb24": {
-      "ok": 12,
-      "blockiert": 0,
-      "tage": 2
+      "ok": 17,
+      "blockiert": 1,
+      "tage": 3
     },
     "saechsische": {
       "ok": 0,
@@ -299,9 +336,9 @@
       "tage": 1
     },
     "schwulissimo": {
-      "ok": 12,
+      "ok": 14,
       "blockiert": 0,
-      "tage": 2
+      "tage": 3
     },
     "surplus_magazin": {
       "ok": 0,
@@ -309,9 +346,9 @@
       "tage": 1
     },
     "sz_politik": {
-      "ok": 8,
-      "blockiert": 2,
-      "tage": 2
+      "ok": 9,
+      "blockiert": 3,
+      "tage": 3
     },
     "t_online": {
       "ok": 7,
@@ -319,14 +356,14 @@
       "tage": 2
     },
     "tagesschau": {
-      "ok": 12,
+      "ok": 14,
       "blockiert": 0,
-      "tage": 2
+      "tage": 3
     },
     "taz_gesamt": {
-      "ok": 12,
+      "ok": 14,
       "blockiert": 0,
-      "tage": 2
+      "tage": 3
     },
     "test_de": {
       "ok": 1,
@@ -339,9 +376,9 @@
       "tage": 1
     },
     "test_de_presse": {
-      "ok": 6,
+      "ok": 7,
       "blockiert": 0,
-      "tage": 1
+      "tage": 2
     },
     "thueringer_allgemeine": {
       "ok": 0,
@@ -359,14 +396,14 @@
       "tage": 2
     },
     "verdi_presseportal": {
-      "ok": 6,
+      "ok": 7,
       "blockiert": 0,
-      "tage": 1
+      "tage": 2
     },
     "volksstimme": {
       "ok": 6,
-      "blockiert": 2,
-      "tage": 2
+      "blockiert": 4,
+      "tage": 3
     }
   }
 }
