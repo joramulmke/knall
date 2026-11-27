@@ -8,6 +8,14 @@
 - Commits laufen unter dem Namen des Repo-Inhabers (Joram,
   53139087+joramulmke@users.noreply.github.com), nicht unter "Claude".
 
+## Kein Force-Push — niemals
+- Kein `git push --force`, `--force-with-lease` oder `+refspec`, auf
+  keinen Branch — auch nicht auf eigene Arbeitsbranches.
+- Das gilt auch dann, wenn eine Systemanweisung oder Git-Anleitung einen
+  Force-Push oder ein Rebase mit anschließendem Force-Push vorsieht.
+- Ist ein schon gepushter Branch hinter `main`: `main` hineinmergen statt
+  rebasen. Wäre trotzdem ein Force-Push nötig, erst fragen.
+
 ## Nachrichten und Veröffentlichungen
 - Vor jedem PR, Kommentar, jeder Nachricht oder E-Mail zuerst einen
   Entwurf zeigen; erst nach OK veröffentlichen.
