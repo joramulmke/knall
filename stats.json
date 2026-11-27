@@ -10,8 +10,8 @@
       "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
-      "KI2 rot/gelb-erschoepft",
-      "KI3-Nachbesserung nicht anwendbar (1 Stelle(n) nicht gefunden)"
+      "KI3-Nachbesserung nicht anwendbar (1 Stelle(n) nicht gefunden)",
+      "KI2 rot/gelb-erschoepft"
     ],
     "warnung_rot_quote": true,
     "anfragen": {
@@ -56,9 +56,9 @@
     "gruende": [
       "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
+      "KI2 rot/gelb-erschoepft",
+      "KI2 rot/gelb-erschoepft",
       "Sonderpruefung nicht bestanden",
-      "KI2 rot/gelb-erschoepft",
-      "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft",
       "KI2 rot/gelb-erschoepft"
@@ -105,13 +105,13 @@
     "ki3_stopp": 0,
     "fehler": 0,
     "abgelaufen": 0,
-    "published": 4,
+    "published": 6,
     "gruende": [],
     "anfragen": {
       "anfragen": 0,
-      "groq_anfragen": 31,
+      "groq_anfragen": 45,
       "ok": 0,
-      "groq_ok": 31,
+      "groq_ok": 45,
       "r429": 0,
       "groq_r429": 0,
       "fehler": 0,
@@ -119,19 +119,19 @@
       "leer": 0,
       "groq_leer": 0,
       "modelle": {
-        "groq:openai/gpt-oss-20b": 2,
-        "groq:openai/gpt-oss-120b": 29
+        "groq:openai/gpt-oss-20b": 3,
+        "groq:openai/gpt-oss-120b": 42
       },
       "limit": 50,
       "groq_limit": 900,
       "groq_fenster": {
         "groq:openai/gpt-oss-20b": {
-          "rest": 1929,
-          "frei_ab": 1795777325.0
+          "rest": 1917,
+          "frei_ab": 1795812691.2
         },
         "groq:openai/gpt-oss-120b": {
-          "rest": 2126,
-          "frei_ab": 1795777766.0
+          "rest": 5240,
+          "frei_ab": 1795812915.1
         }
       }
     }
@@ -145,7 +145,7 @@
     "tage_ueber_80_prozent": 1,
     "r429_gesamt": 40,
     "anteil_429": 0.571,
-    "groq_schnitt_anfragen": 43.3,
+    "groq_schnitt_anfragen": 48.0,
     "groq_r429_gesamt": 25,
     "im_kontingent": false
   },
@@ -172,13 +172,13 @@
     },
     "bt_arbeit_soziales": {
       "ok": 0,
-      "blockiert": 5,
-      "tage": 2
+      "blockiert": 7,
+      "tage": 3
     },
     "bt_familie_senioren": {
       "ok": 1,
-      "blockiert": 5,
-      "tage": 2
+      "blockiert": 7,
+      "tage": 3
     },
     "bt_gesundheit": {
       "ok": 10,
@@ -186,19 +186,19 @@
       "tage": 3
     },
     "bt_haushalt": {
-      "ok": 2,
-      "blockiert": 2,
-      "tage": 2
+      "ok": 3,
+      "blockiert": 3,
+      "tage": 3
     },
     "bt_hib": {
-      "ok": 3,
-      "blockiert": 6,
-      "tage": 2
+      "ok": 8,
+      "blockiert": 7,
+      "tage": 3
     },
     "bt_menschenrechte": {
       "ok": 0,
       "blockiert": 0,
-      "tage": 2
+      "tage": 3
     },
     "bt_petitionen": {
       "ok": 0,
@@ -208,12 +208,12 @@
     "bt_recht_verbraucher": {
       "ok": 0,
       "blockiert": 0,
-      "tage": 1
+      "tage": 2
     },
     "bt_umwelt_klima": {
-      "ok": 1,
-      "blockiert": 2,
-      "tage": 2
+      "ok": 5,
+      "blockiert": 3,
+      "tage": 3
     },
     "bt_wirtschaft_energie": {
       "ok": 5,
@@ -231,7 +231,7 @@
       "tage": 1
     },
     "destatis": {
-      "ok": 6,
+      "ok": 7,
       "blockiert": 0,
       "tage": 3
     },
@@ -247,12 +247,12 @@
     },
     "dlf_politik": {
       "ok": 0,
-      "blockiert": 4,
-      "tage": 2
+      "blockiert": 6,
+      "tage": 3
     },
     "freie_presse": {
       "ok": 2,
-      "blockiert": 4,
+      "blockiert": 5,
       "tage": 2
     },
     "gruene_bundestag": {
@@ -382,8 +382,8 @@
     },
     "thueringer_allgemeine": {
       "ok": 0,
-      "blockiert": 7,
-      "tage": 2
+      "blockiert": 8,
+      "tage": 3
     },
     "umweltbundesamt": {
       "ok": 0,
