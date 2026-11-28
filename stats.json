@@ -136,16 +136,56 @@
       }
     }
   },
+  "2026-11-28": {
+    "rot": 1,
+    "gelb": 0,
+    "ki3_stopp": 0,
+    "fehler": 0,
+    "abgelaufen": 0,
+    "published": 0,
+    "gruende": [
+      "KI2 rot/gelb-erschoepft"
+    ],
+    "warnung_rot_quote": true,
+    "anfragen": {
+      "anfragen": 0,
+      "groq_anfragen": 5,
+      "ok": 0,
+      "groq_ok": 5,
+      "r429": 0,
+      "groq_r429": 0,
+      "fehler": 0,
+      "groq_fehler": 0,
+      "leer": 0,
+      "groq_leer": 0,
+      "modelle": {
+        "groq:openai/gpt-oss-20b": 1,
+        "groq:openai/gpt-oss-120b": 4
+      },
+      "limit": 50,
+      "groq_limit": 900,
+      "groq_fenster": {
+        "groq:openai/gpt-oss-20b": {
+          "rest": 1698,
+          "frei_ab": 1795832512.0
+        },
+        "groq:openai/gpt-oss-120b": {
+          "rest": 4365,
+          "frei_ab": 1795832600.1
+        }
+      }
+    }
+  },
   "_kontingent": {
-    "tage": 3,
+    "tage": 4,
     "limit": 50,
-    "schnitt_anfragen": 23.3,
+    "schnitt_anfragen": 17.5,
     "max_anfragen": 50,
     "tage_am_limit": 1,
     "tage_ueber_80_prozent": 1,
     "r429_gesamt": 40,
     "anteil_429": 0.571,
-    "groq_schnitt_anfragen": 51.7,
+    "groq_schnitt_anfragen": 40.0,
     "groq_r429_gesamt": 25,
     "im_kontingent": false
   },
@@ -181,9 +221,9 @@
       "tage": 3
     },
     "bt_gesundheit": {
-      "ok": 10,
+      "ok": 12,
       "blockiert": 1,
-      "tage": 3
+      "tage": 4
     },
     "bt_haushalt": {
       "ok": 3,
@@ -203,7 +243,7 @@
     "bt_petitionen": {
       "ok": 0,
       "blockiert": 0,
-      "tage": 3
+      "tage": 4
     },
     "bt_recht_verbraucher": {
       "ok": 0,
@@ -237,8 +277,8 @@
     },
     "deutschlandfunk": {
       "ok": 12,
-      "blockiert": 5,
-      "tage": 3
+      "blockiert": 6,
+      "tage": 4
     },
     "dgb_pm": {
       "ok": 1,
@@ -255,6 +295,11 @@
       "blockiert": 5,
       "tage": 2
     },
+    "gerichte": {
+      "ok": 1,
+      "blockiert": 0,
+      "tage": 1
+    },
     "gruene_bundestag": {
       "ok": 1,
       "blockiert": 0,
@@ -266,24 +311,24 @@
       "tage": 3
     },
     "l_iz": {
-      "ok": 15,
+      "ok": 21,
       "blockiert": 0,
-      "tage": 3
+      "tage": 4
     },
     "lr_online": {
-      "ok": 8,
-      "blockiert": 4,
-      "tage": 3
+      "ok": 12,
+      "blockiert": 6,
+      "tage": 4
     },
     "mdr_sachsen": {
-      "ok": 5,
-      "blockiert": 3,
-      "tage": 3
+      "ok": 8,
+      "blockiert": 4,
+      "tage": 4
     },
     "mdr_sachsen_anhalt": {
-      "ok": 7,
+      "ok": 13,
       "blockiert": 1,
-      "tage": 2
+      "tage": 3
     },
     "mdr_thueringen": {
       "ok": 6,
@@ -291,9 +336,9 @@
       "tage": 3
     },
     "moz": {
-      "ok": 1,
+      "ok": 3,
       "blockiert": 1,
-      "tage": 1
+      "tage": 2
     },
     "mz": {
       "ok": 2,
@@ -301,24 +346,24 @@
       "tage": 1
     },
     "nd_gesamt": {
-      "ok": 14,
+      "ok": 17,
       "blockiert": 0,
-      "tage": 3
+      "tage": 4
     },
     "ndr_mv": {
-      "ok": 12,
-      "blockiert": 1,
-      "tage": 3
+      "ok": 13,
+      "blockiert": 3,
+      "tage": 4
     },
     "netzpolitik": {
-      "ok": 6,
+      "ok": 7,
       "blockiert": 0,
-      "tage": 1
+      "tage": 2
     },
     "nordkurier": {
-      "ok": 18,
-      "blockiert": 0,
-      "tage": 3
+      "ok": 23,
+      "blockiert": 1,
+      "tage": 4
     },
     "ossl": {
       "ok": 0,
@@ -326,9 +371,9 @@
       "tage": 1
     },
     "rbb24": {
-      "ok": 17,
-      "blockiert": 1,
-      "tage": 3
+      "ok": 22,
+      "blockiert": 2,
+      "tage": 4
     },
     "saechsische": {
       "ok": 0,
@@ -336,9 +381,9 @@
       "tage": 1
     },
     "schwulissimo": {
-      "ok": 18,
+      "ok": 19,
       "blockiert": 0,
-      "tage": 3
+      "tage": 4
     },
     "surplus_magazin": {
       "ok": 0,
@@ -347,8 +392,8 @@
     },
     "sz_politik": {
       "ok": 12,
-      "blockiert": 4,
-      "tage": 3
+      "blockiert": 5,
+      "tage": 4
     },
     "t_online": {
       "ok": 13,
@@ -356,14 +401,14 @@
       "tage": 3
     },
     "tagesschau": {
-      "ok": 18,
+      "ok": 22,
       "blockiert": 0,
-      "tage": 3
+      "tage": 4
     },
     "taz_gesamt": {
-      "ok": 18,
+      "ok": 20,
       "blockiert": 0,
-      "tage": 3
+      "tage": 4
     },
     "test_de": {
       "ok": 1,
@@ -376,9 +421,9 @@
       "tage": 2
     },
     "test_de_presse": {
-      "ok": 7,
+      "ok": 8,
       "blockiert": 0,
-      "tage": 2
+      "tage": 3
     },
     "thueringer_allgemeine": {
       "ok": 0,
@@ -396,14 +441,14 @@
       "tage": 2
     },
     "verdi_presseportal": {
-      "ok": 7,
+      "ok": 8,
       "blockiert": 0,
-      "tage": 2
+      "tage": 3
     },
     "volksstimme": {
       "ok": 9,
-      "blockiert": 5,
-      "tage": 3
+      "blockiert": 7,
+      "tage": 4
     }
   }
 }
