@@ -137,21 +137,22 @@
     }
   },
   "2026-11-28": {
-    "rot": 1,
+    "rot": 2,
     "gelb": 0,
     "ki3_stopp": 0,
     "fehler": 0,
     "abgelaufen": 0,
-    "published": 0,
+    "published": 1,
     "gruende": [
-      "KI2 rot/gelb-erschoepft"
+      "KI2 rot/gelb-erschoepft",
+      "Sonderpruefung nicht bestanden"
     ],
     "warnung_rot_quote": true,
     "anfragen": {
       "anfragen": 0,
-      "groq_anfragen": 5,
+      "groq_anfragen": 19,
       "ok": 0,
-      "groq_ok": 5,
+      "groq_ok": 19,
       "r429": 0,
       "groq_r429": 0,
       "fehler": 0,
@@ -159,19 +160,19 @@
       "leer": 0,
       "groq_leer": 0,
       "modelle": {
-        "groq:openai/gpt-oss-20b": 1,
-        "groq:openai/gpt-oss-120b": 4
+        "groq:openai/gpt-oss-20b": 2,
+        "groq:openai/gpt-oss-120b": 17
       },
       "limit": 50,
       "groq_limit": 900,
       "groq_fenster": {
         "groq:openai/gpt-oss-20b": {
-          "rest": 1698,
-          "frei_ab": 1795832512.0
+          "rest": 1569,
+          "frei_ab": 1795850489.2
         },
         "groq:openai/gpt-oss-120b": {
-          "rest": 4365,
-          "frei_ab": 1795832600.1
+          "rest": 1721,
+          "frei_ab": 1795850807.4
         }
       }
     }
@@ -185,7 +186,7 @@
     "tage_ueber_80_prozent": 1,
     "r429_gesamt": 40,
     "anteil_429": 0.571,
-    "groq_schnitt_anfragen": 40.0,
+    "groq_schnitt_anfragen": 43.5,
     "groq_r429_gesamt": 25,
     "im_kontingent": false
   },
@@ -221,7 +222,7 @@
       "tage": 3
     },
     "bt_gesundheit": {
-      "ok": 12,
+      "ok": 16,
       "blockiert": 1,
       "tage": 4
     },
@@ -251,14 +252,14 @@
       "tage": 2
     },
     "bt_umwelt_klima": {
-      "ok": 5,
-      "blockiert": 3,
-      "tage": 3
+      "ok": 8,
+      "blockiert": 4,
+      "tage": 4
     },
     "bt_wirtschaft_energie": {
       "ok": 5,
-      "blockiert": 3,
-      "tage": 3
+      "blockiert": 4,
+      "tage": 4
     },
     "bt_wohnen": {
       "ok": 0,
@@ -271,12 +272,12 @@
       "tage": 1
     },
     "destatis": {
-      "ok": 7,
+      "ok": 9,
       "blockiert": 0,
-      "tage": 3
+      "tage": 4
     },
     "deutschlandfunk": {
-      "ok": 12,
+      "ok": 16,
       "blockiert": 6,
       "tage": 4
     },
@@ -306,9 +307,9 @@
       "tage": 1
     },
     "junge_welt": {
-      "ok": 5,
+      "ok": 7,
       "blockiert": 4,
-      "tage": 3
+      "tage": 4
     },
     "l_iz": {
       "ok": 21,
@@ -321,7 +322,7 @@
       "tage": 4
     },
     "mdr_sachsen": {
-      "ok": 8,
+      "ok": 9,
       "blockiert": 4,
       "tage": 4
     },
@@ -331,9 +332,9 @@
       "tage": 3
     },
     "mdr_thueringen": {
-      "ok": 6,
-      "blockiert": 5,
-      "tage": 3
+      "ok": 9,
+      "blockiert": 6,
+      "tage": 4
     },
     "moz": {
       "ok": 3,
@@ -346,7 +347,7 @@
       "tage": 1
     },
     "nd_gesamt": {
-      "ok": 17,
+      "ok": 20,
       "blockiert": 0,
       "tage": 4
     },
@@ -381,7 +382,7 @@
       "tage": 1
     },
     "schwulissimo": {
-      "ok": 19,
+      "ok": 22,
       "blockiert": 0,
       "tage": 4
     },
@@ -391,22 +392,22 @@
       "tage": 1
     },
     "sz_politik": {
-      "ok": 12,
-      "blockiert": 5,
+      "ok": 14,
+      "blockiert": 7,
       "tage": 4
     },
     "t_online": {
-      "ok": 13,
+      "ok": 19,
       "blockiert": 0,
-      "tage": 3
+      "tage": 4
     },
     "tagesschau": {
-      "ok": 22,
+      "ok": 24,
       "blockiert": 0,
       "tage": 4
     },
     "taz_gesamt": {
-      "ok": 20,
+      "ok": 24,
       "blockiert": 0,
       "tage": 4
     },
@@ -416,9 +417,9 @@
       "tage": 1
     },
     "test_de_alles": {
-      "ok": 11,
+      "ok": 16,
       "blockiert": 0,
-      "tage": 2
+      "tage": 3
     },
     "test_de_presse": {
       "ok": 8,
@@ -446,8 +447,8 @@
       "tage": 3
     },
     "volksstimme": {
-      "ok": 9,
-      "blockiert": 7,
+      "ok": 10,
+      "blockiert": 9,
       "tage": 4
     }
   }

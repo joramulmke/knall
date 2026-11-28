@@ -1,0 +1,105 @@
+{
+  "thema": "AfD‑Ministerpräsidentenwahl in Sachsen‑Anhalt",
+  "ressort": "alle-gleich",
+  "quellen": [
+    {
+      "titel": "Ministerpräsidentenwahl Sachsen-Anhalt 2026: Ablauf, Termin, Kandidaten",
+      "url": "https://www.mdr.de/nachrichten/sachsen-anhalt/landtagswahl/siegmund-afd-cdu-bsw-linke-von-angern-landtag-ablauf-2026-kandidat,wahl-ministerpraesident-118.html",
+      "medium": "MDR"
+    }
+  ],
+  "quellen_verworfen": 0,
+  "ablehnungsgruende": [
+    "Sonderpruefung nicht bestanden"
+  ],
+  "abbruch": false,
+  "gelb_erschoepft": false,
+  "rot_korrekturen": 2,
+  "ki2_endampel": "gruen",
+  "ki2_validierung": [
+    {
+      "ampel": "rot",
+      "gruende": []
+    },
+    {
+      "ampel": "rot",
+      "gruende": []
+    },
+    {
+      "ampel": "gruen",
+      "gruende": []
+    }
+  ],
+  "ki2": {
+    "ampel": "gruen",
+    "titel_befund": "ok",
+    "saetze": [
+      {
+        "satz_nr": 0,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 1,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 2,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 3,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 4,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 5,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 6,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 7,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 8,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 9,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 10,
+        "befund": "ok",
+        "pruefposten": []
+      }
+    ]
+  },
+  "special_checks": {
+    "bestaende": false,
+    "zahlen_fehler": 0,
+    "entities_fehler": 1,
+    "plagiat": false,
+    "injection": false,
+    "leer": false
+  },
+  "ki3": null,
+  "ki3_validierung": null,
+  "ki3_nachbesserung": false
+}
