@@ -1,0 +1,118 @@
+{
+  "thema": "IG Metall‑Tarifvertrag 2027",
+  "ressort": "kohle",
+  "quellen": [
+    {
+      "titel": "Tarifverhandlungen | Mehr Geld und eine aufgeweichte 35-Stunden-Woche",
+      "url": "https://www.nd-aktuell.de/artikel/1204200.tarifverhandlungen-mehr-geld-und-eine-aufgeweichte-stunden-woche.html",
+      "medium": "nd"
+    },
+    {
+      "titel": "Kommentar: Deckel drauf",
+      "url": "https://www.jungewelt.de/artikel/534181.deckel-drauf.html",
+      "medium": "junge Welt"
+    }
+  ],
+  "quellen_verworfen": 0,
+  "ablehnungsgruende": [
+    "KI2 rot/gelb-erschoepft"
+  ],
+  "abbruch": false,
+  "gelb_erschoepft": false,
+  "rot_korrekturen": 2,
+  "ki2_endampel": "rot",
+  "ki2_validierung": [
+    {
+      "ampel": "rot",
+      "gruende": []
+    },
+    {
+      "ampel": "rot",
+      "gruende": []
+    },
+    {
+      "ampel": "rot",
+      "gruende": []
+    },
+    {
+      "ampel": "rot",
+      "gruende": []
+    }
+  ],
+  "ki2": {
+    "ampel": "rot",
+    "titel_befund": "rot",
+    "saetze": [
+      {
+        "satz_nr": 0,
+        "befund": "rot",
+        "pruefposten": [
+          "P1",
+          "P2"
+        ]
+      },
+      {
+        "satz_nr": 1,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 2,
+        "befund": "rot",
+        "pruefposten": [
+          "P1"
+        ]
+      },
+      {
+        "satz_nr": 3,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 4,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 5,
+        "befund": "rot",
+        "pruefposten": [
+          "P4"
+        ]
+      },
+      {
+        "satz_nr": 6,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 7,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 8,
+        "befund": "ok",
+        "pruefposten": []
+      },
+      {
+        "satz_nr": 9,
+        "befund": "rot",
+        "pruefposten": [
+          "P3"
+        ]
+      }
+    ]
+  },
+  "special_checks": {
+    "bestaende": true,
+    "zahlen_fehler": 0,
+    "entities_fehler": 0,
+    "plagiat": false,
+    "injection": false,
+    "leer": false
+  },
+  "ki3": null,
+  "ki3_validierung": null,
+  "ki3_nachbesserung": false
+}

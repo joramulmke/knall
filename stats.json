@@ -137,7 +137,7 @@
     }
   },
   "2026-11-28": {
-    "rot": 2,
+    "rot": 3,
     "gelb": 0,
     "ki3_stopp": 0,
     "fehler": 0,
@@ -145,14 +145,15 @@
     "published": 1,
     "gruende": [
       "KI2 rot/gelb-erschoepft",
-      "Sonderpruefung nicht bestanden"
+      "Sonderpruefung nicht bestanden",
+      "KI2 rot/gelb-erschoepft"
     ],
     "warnung_rot_quote": true,
     "anfragen": {
       "anfragen": 0,
-      "groq_anfragen": 19,
+      "groq_anfragen": 28,
       "ok": 0,
-      "groq_ok": 19,
+      "groq_ok": 28,
       "r429": 0,
       "groq_r429": 0,
       "fehler": 0,
@@ -160,19 +161,19 @@
       "leer": 0,
       "groq_leer": 0,
       "modelle": {
-        "groq:openai/gpt-oss-20b": 2,
-        "groq:openai/gpt-oss-120b": 17
+        "groq:openai/gpt-oss-20b": 3,
+        "groq:openai/gpt-oss-120b": 25
       },
       "limit": 50,
       "groq_limit": 900,
       "groq_fenster": {
         "groq:openai/gpt-oss-20b": {
-          "rest": 1569,
-          "frei_ab": 1795850489.2
+          "rest": 2175,
+          "frei_ab": 1795872076.3
         },
         "groq:openai/gpt-oss-120b": {
-          "rest": 1721,
-          "frei_ab": 1795850807.4
+          "rest": 3642,
+          "frei_ab": 1795872290.9
         }
       }
     }
@@ -186,7 +187,7 @@
     "tage_ueber_80_prozent": 1,
     "r429_gesamt": 40,
     "anteil_429": 0.571,
-    "groq_schnitt_anfragen": 43.5,
+    "groq_schnitt_anfragen": 45.8,
     "groq_r429_gesamt": 25,
     "im_kontingent": false
   },
@@ -213,13 +214,13 @@
     },
     "bt_arbeit_soziales": {
       "ok": 0,
-      "blockiert": 8,
-      "tage": 3
+      "blockiert": 9,
+      "tage": 4
     },
     "bt_familie_senioren": {
       "ok": 2,
-      "blockiert": 8,
-      "tage": 3
+      "blockiert": 10,
+      "tage": 4
     },
     "bt_gesundheit": {
       "ok": 16,
@@ -227,19 +228,19 @@
       "tage": 4
     },
     "bt_haushalt": {
-      "ok": 3,
-      "blockiert": 3,
-      "tage": 3
+      "ok": 4,
+      "blockiert": 4,
+      "tage": 4
     },
     "bt_hib": {
-      "ok": 8,
-      "blockiert": 7,
-      "tage": 3
+      "ok": 13,
+      "blockiert": 8,
+      "tage": 4
     },
     "bt_menschenrechte": {
       "ok": 0,
       "blockiert": 0,
-      "tage": 3
+      "tage": 4
     },
     "bt_petitionen": {
       "ok": 0,
@@ -248,11 +249,11 @@
     },
     "bt_recht_verbraucher": {
       "ok": 0,
-      "blockiert": 0,
-      "tage": 2
+      "blockiert": 1,
+      "tage": 3
     },
     "bt_umwelt_klima": {
-      "ok": 8,
+      "ok": 9,
       "blockiert": 4,
       "tage": 4
     },
@@ -264,7 +265,7 @@
     "bt_wohnen": {
       "ok": 0,
       "blockiert": 0,
-      "tage": 3
+      "tage": 4
     },
     "bundesagentur_arbeit": {
       "ok": 0,
@@ -277,7 +278,7 @@
       "tage": 4
     },
     "deutschlandfunk": {
-      "ok": 16,
+      "ok": 17,
       "blockiert": 6,
       "tage": 4
     },
@@ -307,7 +308,7 @@
       "tage": 1
     },
     "junge_welt": {
-      "ok": 7,
+      "ok": 11,
       "blockiert": 4,
       "tage": 4
     },
@@ -378,12 +379,12 @@
     },
     "saechsische": {
       "ok": 0,
-      "blockiert": 4,
-      "tage": 1
+      "blockiert": 6,
+      "tage": 2
     },
     "schwulissimo": {
-      "ok": 22,
-      "blockiert": 0,
+      "ok": 23,
+      "blockiert": 1,
       "tage": 4
     },
     "surplus_magazin": {
@@ -393,7 +394,7 @@
     },
     "sz_politik": {
       "ok": 14,
-      "blockiert": 7,
+      "blockiert": 8,
       "tage": 4
     },
     "t_online": {
